@@ -1,0 +1,3141 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ProFix Service HP — Manajemen Konter & Keuangan Real-Time</title>
+    <meta name="theme-color" content="#1e40af">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ProFix Service HP">
+    <link id="dynamicAppIcon" rel="apple-touch-icon" href="">
+    <link id="dynamicManifestLink" rel="manifest" href="">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media print {
+            body * { visibility: hidden !important; }
+            #printableArea, #printableArea * { visibility: visible !important; }
+            #printableArea {
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased pb-16">
+
+    <!-- Toast Notifikasi -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-[120] flex flex-col gap-2 max-w-xs w-full pointer-events-none"></div>
+
+    <!-- Header Utama -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
+            <!-- Kiri: Nama Konter & Status Kode Unik -->
+            <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-extrabold text-lg shadow-sm shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 id="headerShopName" class="font-extrabold text-base sm:text-lg text-slate-900 leading-tight">ProFix Service HP</h1>
+                    <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <button type="button" onclick="openRoomCodeModal()" class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer">
+                            <span id="syncStatusDot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span id="syncStatusText">Online Real-Time</span>
+                        </button>
+                        <button type="button" onclick="openRoomCodeModal()" class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition cursor-pointer" title="Lihat & Kelola Perangkat Tersambung">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            <span id="connectedDeviceCount">1 Perangkat</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kanan: Tombol Aksi Cepat -->
+            <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <button type="button" onclick="manualSyncNow()" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer" title="Sinkronkan Data Sekarang">
+                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <span class="hidden md:inline">Sync</span>
+                </button>
+
+                <button type="button" onclick="openWarrantyModal()" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer" title="Cek Garansi Pelanggan">
+                    <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    <span class="hidden sm:inline">Cek Garansi</span>
+                </button>
+
+                <button type="button" onclick="openBackupRestoreModal()" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer" title="Backup & Restore Data Excel / JSON">
+                    <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    <span class="hidden sm:inline">Backup / Restore</span>
+                </button>
+
+                <button type="button" id="installPwaHeaderBtn" onclick="triggerInstallApp()" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer" title="Pasang Aplikasi ke Layar Utama">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    <span class="hidden sm:inline">Pasang App</span>
+                </button>
+
+                <button type="button" id="lockScreenBtn" onclick="lockAppScreen()" class="hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer" title="Kunci Layar PIN">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                </button>
+
+                <button type="button" onclick="openSettingsModal()" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer" title="Pengaturan Konter & Bagi Hasil">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                </button>
+
+                <button type="button" onclick="openServiceModal()" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                    <span>Input Service</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Konten Utama -->
+    <main class="max-w-7xl mx-auto px-3 sm:px-6 pt-5 space-y-5">
+
+        <!-- 5 Kartu Ringkasan Keuangan -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            <!-- 1. Total Omzet (Diterima) -->
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Omzet (Masuk)</span>
+                    <span class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-extrabold">Rp</span>
+                </div>
+                <div id="statTotalOmzet" class="text-xl sm:text-2xl font-extrabold text-slate-900 my-1.5">Rp 0</div>
+                <div class="text-[11px] text-slate-500 border-t border-slate-100 pt-1.5">
+                    Modal Part & Trans: <strong id="statTotalModal" class="text-slate-700">Rp 0</strong>
+                </div>
+            </div>
+
+            <!-- 2. Laba Bersih + Rincian Sendiri / Istri / Teknisi -->
+            <div class="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl p-4 shadow-md flex flex-col justify-between">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-blue-100">Laba Bersih</span>
+                    <button type="button" onclick="openFundUsageModal('laba')" class="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold transition cursor-pointer">
+                        - Cairkan
+                    </button>
+                </div>
+                <div id="statNetProfit" class="text-xl sm:text-2xl font-extrabold my-1">Rp 0</div>
+                <div class="text-[10.5px] text-blue-100 border-t border-white/15 pt-1.5 space-y-0.5">
+                    <div class="flex justify-between"><span>Sendiri:</span> <strong id="statProfitSendiri">Rp 0</strong></div>
+                    <div class="flex justify-between"><span>Istri:</span> <strong id="statProfitIstri">Rp 0</strong></div>
+                    <div class="flex justify-between"><span>Teknisi Bagi Hasil:</span> <strong id="statProfitTeknisi">Rp 0</strong></div>
+                </div>
+            </div>
+
+            <!-- 3. Tabungan Alat (10%) -->
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span id="labelCardTool" class="text-[11px] font-bold uppercase tracking-wider text-amber-600">Tabungan Alat (10%)</span>
+                    <button type="button" onclick="openFundUsageModal('alat')" class="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-[11px] font-bold border border-amber-200 transition cursor-pointer">- Pakai</button>
+                </div>
+                <div id="statToolFund" class="text-xl sm:text-2xl font-extrabold text-slate-900 my-1.5">Rp 0</div>
+                <div class="text-[11px] text-slate-500 border-t border-slate-100 pt-1.5 flex justify-between">
+                    <span>Terpakai:</span>
+                    <strong id="statToolUsed" class="text-amber-700">Rp 0</strong>
+                </div>
+            </div>
+
+            <!-- 4. Dana Sedekah (2.5%) -->
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span id="labelCardCharity" class="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Dana Sedekah (2.5%)</span>
+                    <button type="button" onclick="openFundUsageModal('sedekah')" class="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold border border-emerald-200 transition cursor-pointer">- Salurkan</button>
+                </div>
+                <div id="statCharityFund" class="text-xl sm:text-2xl font-extrabold text-slate-900 my-1.5">Rp 0</div>
+                <div class="text-[11px] text-slate-500 border-t border-slate-100 pt-1.5 flex justify-between">
+                    <span>Tersalurkan:</span>
+                    <strong id="statCharityUsed" class="text-emerald-700">Rp 0</strong>
+                </div>
+            </div>
+
+            <!-- 5. Piutang Pelanggan -->
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-rose-600">Piutang Pelanggan</span>
+                    <span class="w-6 h-6 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-xs font-extrabold">!</span>
+                </div>
+                <div id="statTotalPiutang" class="text-xl sm:text-2xl font-extrabold text-rose-600 my-1.5">Rp 0</div>
+                <div class="text-[11px] text-slate-500 border-t border-slate-100 pt-1.5 flex justify-between">
+                    <span>Hutang Part:</span>
+                    <strong id="statTotalHutangPart" class="text-slate-700">Rp 0</strong>
+                </div>
+            </div>
+        </section>
+
+        <!-- Navigasi Tab -->
+        <nav class="bg-white rounded-2xl p-1.5 border border-slate-200 shadow-sm flex items-center gap-1 overflow-x-auto no-scrollbar">
+            <button type="button" id="tabBtn-services" onclick="switchTab('services')" class="tab-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 text-white whitespace-nowrap inline-flex items-center gap-1.5 transition cursor-pointer">
+                <span>Daftar Service HP</span>
+                <span id="badgeServicesCount" class="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white">0</span>
+            </button>
+            <button type="button" id="tabBtn-debts" onclick="switchTab('debts')" class="tab-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-100 whitespace-nowrap inline-flex items-center gap-1.5 transition cursor-pointer">
+                <span>Hutang & Piutang</span>
+                <span id="badgeDebtsCount" class="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-700">0</span>
+            </button>
+            <button type="button" id="tabBtn-funds" onclick="switchTab('funds')" class="tab-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-100 whitespace-nowrap transition cursor-pointer">
+                Pencairan, Operasional & Sedekah
+            </button>
+            <button type="button" id="tabBtn-inventory" onclick="switchTab('inventory')" class="tab-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-100 whitespace-nowrap transition cursor-pointer">
+                Stok & Alat
+            </button>
+            <button type="button" id="tabBtn-reports" onclick="switchTab('reports')" class="tab-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-100 whitespace-nowrap transition cursor-pointer">
+                Laporan Bulanan
+            </button>
+            <button type="button" id="tabBtn-install" onclick="switchTab('install')" class="tab-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-100 whitespace-nowrap transition cursor-pointer">
+                Pasang di HP / PC
+            </button>
+        </nav>
+
+        <!-- TAB 1: DAFTAR SERVICE HP -->
+        <section id="tabContent-services" class="tab-panel space-y-3.5">
+            <!-- Pencarian & Filter -->
+            <div class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-2.5">
+                <div class="relative flex-1">
+                    <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" id="searchInput" oninput="renderServicesTable()" placeholder="Cari nama pelanggan, tipe HP, nomor IMEI, atau keluhan..." class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="flex gap-2">
+                    <select id="statusFilter" onchange="renderServicesTable()" class="px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-700 bg-white">
+                        <option value="ALL">Semua Status</option>
+                        <option value="Antrean">Antrean</option>
+                        <option value="Proses">Proses</option>
+                        <option value="Selesai">Selesai</option>
+                        <option value="Diambil">Diambil</option>
+                        <option value="Batal">Batal</option>
+                    </select>
+                    <select id="warrantyFilter" onchange="renderServicesTable()" class="px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-700 bg-white">
+                        <option value="ALL">Semua Garansi</option>
+                        <option value="ACTIVE">Garansi Aktif</option>
+                        <option value="EXPIRED">Habis Garansi</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Tabel Service HP -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                <th class="py-3 px-4">Pelanggan & Unit HP</th>
+                                <th class="py-3 px-4">Keluhan & Tanggal</th>
+                                <th class="py-3 px-4">Status & Garansi</th>
+                                <th class="py-3 px-4">Rincian Biaya & Piutang</th>
+                                <th class="py-3 px-4">Bagi Hasil & Pos Dana</th>
+                                <th class="py-3 px-4 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="servicesTableBody" class="divide-y divide-slate-100 text-xs sm:text-sm"></tbody>
+                    </table>
+                </div>
+                <div id="emptyServicesState" class="hidden py-12 px-4 text-center space-y-2">
+                    <p class="font-bold text-slate-700">Belum ada data service HP</p>
+                    <p class="text-xs text-slate-400">Klik tombol <strong>+ Input Service</strong> di pojok kanan atas untuk mencatat servis baru.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: HUTANG & PIUTANG -->
+        <section id="tabContent-debts" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Piutang Pelanggan -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div>
+                        <h2 class="font-extrabold text-slate-800 text-sm sm:text-base">Piutang Pelanggan (Belum Lunas)</h2>
+                        <p class="text-xs text-slate-500">Baru masuk ke Total Omzet setelah dilunasi.</p>
+                    </div>
+                    <span id="debtTabPiutangTotal" class="font-extrabold text-rose-600 text-sm">Rp 0</span>
+                </div>
+                <div id="piutangListContainer" class="space-y-2.5"></div>
+            </div>
+
+            <!-- Hutang Sparepart ke Supplier -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div>
+                        <h2 class="font-extrabold text-slate-800 text-sm sm:text-base">Hutang Sparepart ke Supplier / Toko</h2>
+                        <p class="text-xs text-slate-500">Tagihan pembelian sparepart yang belum dibayar.</p>
+                    </div>
+                    <span id="debtTabHutangTotal" class="font-extrabold text-amber-700 text-sm">Rp 0</span>
+                </div>
+                <div id="hutangPartListContainer" class="space-y-2.5"></div>
+            </div>
+        </section>
+
+        <!-- TAB 3: PENCAIRAN LABA, OPERASIONAL & SEDEKAH -->
+        <section id="tabContent-funds" class="tab-panel hidden space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3.5">
+                <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
+                    <div class="text-xs font-bold text-blue-600 uppercase">Pencairan Laba Bersih</div>
+                    <p class="text-xs text-slate-500">Cairkan jatah laba bersih Sendiri, Istri, atau Teknisi Bagi Hasil.</p>
+                    <button type="button" onclick="openFundUsageModal('laba')" class="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">+ Cairkan Laba Bersih</button>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
+                    <div class="text-xs font-bold text-purple-600 uppercase">Operasional Harian Konter</div>
+                    <p class="text-xs text-slate-500">Catat beli timah, fluks, lem LCD, tisu, atau token listrik konter.</p>
+                    <button type="button" onclick="openFundUsageModal('operasional')" class="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold cursor-pointer">+ Catat Pengeluaran Harian</button>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
+                    <div class="text-xs font-bold text-amber-600 uppercase">Penggunaan Tabungan Alat</div>
+                    <p class="text-xs text-slate-500">Catat pembelian solder, blower, mikroskop, atau alat servis.</p>
+                    <button type="button" onclick="openFundUsageModal('alat')" class="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold cursor-pointer">+ Catat Beli Alat</button>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
+                    <div class="text-xs font-bold text-emerald-600 uppercase">Penyaluran Dana Sedekah</div>
+                    <p class="text-xs text-slate-500">Catat penyaluran dana sedekah 2.5% dari laba konter.</p>
+                    <button type="button" onclick="openFundUsageModal('sedekah')" class="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer">+ Catat Sedekah Keluar</button>
+                </div>
+            </div>
+
+            <!-- Riwayat Mutasi & Pencairan Detail -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                    <h3 class="font-extrabold text-sm text-slate-800">Riwayat Pencairan Laba, Operasional, Alat & Sedekah</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500">
+                                <th class="py-2.5 px-4">Tanggal</th>
+                                <th class="py-2.5 px-4">Kategori & Pos Dicairkan</th>
+                                <th class="py-2.5 px-4">Rincian Nominal</th>
+                                <th class="py-2.5 px-4">Keterangan Detail</th>
+                                <th class="py-2.5 px-4 text-right">Hapus</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fundLogsTableBody" class="divide-y divide-slate-100 text-xs sm:text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 4: STOK SPAREPART & INVENTARIS ALAT -->
+        <section id="tabContent-inventory" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Stok Sparepart -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <h3 class="font-extrabold text-sm sm:text-base text-slate-800">Stok Sparepart Konter</h3>
+                    <button type="button" onclick="openStockModal()" class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">+ Tambah Stok</button>
+                </div>
+                <div id="stockListContainer" class="space-y-2"></div>
+            </div>
+
+            <!-- Daftar Inventaris Alat -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <h3 class="font-extrabold text-sm sm:text-base text-slate-800">Inventaris Alat Service</h3>
+                    <button type="button" onclick="openToolAssetModal()" class="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold cursor-pointer">+ Catat Alat</button>
+                </div>
+                <div id="toolAssetListContainer" class="space-y-2"></div>
+            </div>
+        </section>
+
+        <!-- TAB 5: LAPORAN BULANAN & EXPORT -->
+        <section id="tabContent-reports" class="tab-panel hidden space-y-4">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                        <h3 class="font-extrabold text-base text-slate-800">Rekapitulasi Keuangan & Laporan Bulanan</h3>
+                        <p class="text-xs text-slate-500">Ringkasan seluruh transaksi masuk, laba bersih, serta cadangan data.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="exportBackupExcel()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer">Export Excel (.xlsx)</button>
+                        <button type="button" onclick="openBackupRestoreModal()" class="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold cursor-pointer">Backup / Restore Data</button>
+                    </div>
+                </div>
+                <div id="monthlyReportContainer" class="space-y-2"></div>
+            </div>
+        </section>
+
+        <!-- TAB 6: PASANG DI HP / PC -->
+        <section id="tabContent-install" class="tab-panel hidden">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 max-w-2xl mx-auto space-y-4">
+                <h3 class="font-extrabold text-lg text-slate-900">Pasang Aplikasi ke Layar Utama HP / PC</h3>
+                <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                    Anda dapat memasang aplikasi ini ke layar utama HP Android, iPhone, maupun Desktop Windows agar tampil layar penuh layaknya aplikasi kasir resmi dan tetap bisa dibuka saat offline.
+                </p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button type="button" onclick="triggerInstallApp()" class="p-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm text-center shadow-sm cursor-pointer">
+                        Pasang Langsung (PWA)
+                    </button>
+                    <button type="button" onclick="downloadStandaloneAppFile()" class="p-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm text-center shadow-sm cursor-pointer">
+                        Download File Aplikasi (.HTML)
+                    </button>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200 text-xs text-slate-600 space-y-1.5">
+                    <p class="font-bold text-slate-800">Panduan Singkat:</p>
+                    <p>1. <strong>Android (Chrome):</strong> Klik titik tiga di pojok kanan atas browser &rarr; pilih <em>"Tambahkan ke layar utama / Instal aplikasi"</em>.</p>
+                    <p>2. <strong>iPhone (Safari):</strong> Tekan tombol <em>Bagikan (Share)</em> di bagian bawah &rarr; pilih <em>"Tambah ke Layar Utama"</em>.</p>
+                    <p>3. <strong>Sinkronisasi HP & PC:</strong> Gunakan <strong>Kode Unik</strong> yang sama di pojok kiri atas agar data tersinkronisasi otomatis.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ===================================================================== -->
+    <!-- SEMUA MODAL (TIDAK MENGGUNAKAN KELAS KONFLIK hidden + flex BERSAMAAN) -->
+    <!-- ===================================================================== -->
+
+    <!-- Modal 0: Kode Unik Sinkronisasi Real-Time & Daftar Perangkat -->
+    <div id="roomCodeModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4 my-6">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-extrabold text-base text-slate-900">Kode Unik Sinkronisasi Konter</h3>
+                    <p class="text-[11px] text-slate-500">Hubungkan HP & PC dengan kode unik yang sama secara real-time.</p>
+                </div>
+                <button type="button" onclick="closeRoomCodeModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-xs font-bold text-slate-700">Kode Unik Anda Saat Ini</label>
+                <div class="flex gap-2">
+                    <input type="text" id="roomCodeModalInput" placeholder="Contoh: VAHNCELL99" class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 font-extrabold uppercase tracking-wider text-sm focus:outline-none focus:border-blue-500">
+                    <button type="button" onclick="generateRandomRoomCode()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer">Acak</button>
+                </div>
+                <div id="roomOwnershipStatusBox" class="text-[11px] px-3 py-2 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 font-medium"></div>
+            </div>
+
+            <!-- Tombol Minta Izin Ulang (Muncul jika perangkat pernah diputus/ditolak) -->
+            <div id="reRequestAccessBox" class="hidden bg-amber-50 border border-amber-300 rounded-xl p-3 space-y-2">
+                <p class="text-xs font-bold text-amber-800">Akses perangkat ini belum diizinkan atau telah diputus oleh perangkat utama.</p>
+                <button type="button" onclick="manualReRequestAccess()" class="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold cursor-pointer">
+                    Minta Izin Masuk Kembali
+                </button>
+            </div>
+
+            <!-- Daftar Perangkat Tersambung -->
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-700">Perangkat Dalam Kode Unik Ini</span>
+                    <span id="modalDeviceCountBadge" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">1 Perangkat</span>
+                </div>
+                <div id="connectedDevicesList" class="max-h-44 overflow-y-auto space-y-2 border border-slate-200 rounded-xl p-2.5 bg-slate-50"></div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onclick="closeRoomCodeModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer">Tutup</button>
+                <button type="button" onclick="handleSaveRoomCodeOnly()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">Simpan & Hubungkan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 0B: Konfirmasi Izin Perangkat Baru -->
+    <div id="deviceApprovalModal" class="fixed inset-0 bg-slate-900/70 z-[70] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border-2 border-amber-400 space-y-4">
+            <div class="flex items-center gap-2.5 text-amber-600">
+                <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <h3 class="font-extrabold text-base text-slate-900">Permintaan Izin Perangkat Baru</h3>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">
+                Ada perangkat baru yang mencoba masuk menggunakan kode unik konter Anda:
+            </p>
+            <div id="approvalDeviceDetails" class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-1 text-slate-800"></div>
+            <div class="flex gap-2 pt-1">
+                <button type="button" onclick="respondDeviceJoinRequest(false)" class="flex-1 py-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold text-xs cursor-pointer">Tolak</button>
+                <button type="button" onclick="respondDeviceJoinRequest(true)" class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer">Izinkan Masuk</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 1: Form Input / Edit Data Service HP -->
+    <div id="serviceModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6">
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h3 id="serviceModalTitle" class="font-extrabold text-base text-slate-900">Input Data Service HP Baru</h3>
+                <button type="button" onclick="closeServiceModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-200 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+
+            <form id="serviceForm" onsubmit="saveServiceRecord(event)" class="p-5 space-y-4 max-h-[82vh] overflow-y-auto">
+                <input type="hidden" id="editRecordId">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Nama Pelanggan *</label>
+                        <input type="text" id="custName" required placeholder="Contoh: Budi Santoso" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">No. WhatsApp / HP</label>
+                        <input type="text" id="custPhone" placeholder="Contoh: 08123456789" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Merek & Tipe HP *</label>
+                        <input type="text" id="phoneModel" required placeholder="Contoh: Redmi Note 11" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">IMEI / Serial (Opsional)</label>
+                        <input type="text" id="phoneImei" placeholder="15 digit IMEI" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">PIN / Pola Layar HP</label>
+                        <input type="text" id="phonePin" placeholder="Contoh: 1234 / Pola Z" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Keluhan / Kerusakan *</label>
+                        <input type="text" id="issueDesc" required placeholder="Contoh: Ganti LCD Fullset" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Kelengkapan Unit</label>
+                        <input type="text" id="accessories" placeholder="Contoh: HP + SIM Card" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Tanggal Masuk</label>
+                        <input type="date" id="dateIn" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Tanggal Selesai/Keluar</label>
+                        <input type="date" id="dateOut" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Status Pengerjaan</label>
+                        <select id="serviceStatus" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white">
+                            <option value="Antrean">Antrean</option>
+                            <option value="Proses">Proses</option>
+                            <option value="Selesai">Selesai</option>
+                            <option value="Diambil">Diambil</option>
+                            <option value="Batal">Batal</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Garansi (Hari)</label>
+                        <input type="number" id="warrantyDays" value="7" min="0" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                    </div>
+                </div>
+
+                <!-- Biaya & Pembayaran -->
+                <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Total Biaya Service (Rp) *</label>
+                            <input type="number" id="totalCost" required min="0" value="0" onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)" oninput="updateLiveProfitPreview()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Modal Sparepart (Rp)</label>
+                            <input type="number" id="partCost" min="0" value="0" onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)" oninput="updateLiveProfitPreview()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Ongkos Transport/Bensin (Rp)</label>
+                            <input type="number" id="transportCost" min="0" value="0" onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)" oninput="updateLiveProfitPreview()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-bold text-slate-700">Sudah Dibayar Pelanggan (Rp)</label>
+                                <button type="button" onclick="setPaidFull100()" class="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer">Lunas 100%</button>
+                            </div>
+                            <input type="number" id="paidAmount" min="0" value="0" onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)" oninput="updateLiveProfitPreview()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold text-emerald-700">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Modal Sparepart (Rp)</label>
+                            <input type="number" id="partCost" min="0" value="0" oninput="updateLiveProfitPreview()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Ongkos Transport/Bensin (Rp)</label>
+                            <input type="number" id="transportCost" min="0" value="0" oninput="updateLiveProfitPreview()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-bold text-slate-700">Sudah Dibayar Pelanggan (Rp)</label>
+                                <button type="button" onclick="setPaidFull100()" class="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer">Lunas 100%</button>
+                            </div>
+                            <input type="number" id="paidAmount" min="0" value="0" oninput="updateLiveProfitPreview()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold text-emerald-700">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Status Hutang Sparepart ke Supplier</label>
+                            <div class="flex gap-2">
+                                <select id="partDebtStatus" class="px-2.5 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white">
+                                    <option value="LUNAS">Part Lunas</option>
+                                    <option value="HUTANG">Hutang Supplier</option>
+                                </select>
+                                <input type="text" id="supplierName" placeholder="Nama Toko Part" class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dikerjakan Oleh & Bagi Hasil -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Dikerjakan Oleh</label>
+                            <select id="workerType" onchange="onWorkerTypeChange()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm font-bold bg-white">
+                                <option value="Sendiri">Sendiri (100% Konter)</option>
+                                <option value="Istri">Istri (100% Hak Istri)</option>
+                                <option value="Teknisi">Teknisi Bagi Hasil</option>
+                            </select>
+                        </div>
+                        <div id="techShareBox" class="hidden">
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Nama Teknisi & Persen (%)</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="techName" placeholder="Nama Teknisi" class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                                <input type="number" id="techSharePct" value="50" min="0" max="100" oninput="updateLiveProfitPreview()" class="w-20 px-2.5 py-2 rounded-xl border border-slate-300 text-xs font-bold text-center">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview Otomatis -->
+                    <div id="liveProfitPreview" class="bg-white rounded-xl p-3 border border-blue-200 text-xs flex flex-wrap justify-between gap-2 text-slate-700"></div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeServiceModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer">Batal</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm cursor-pointer">Simpan Data Service</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 2: Pencairan Laba Bersih (3 Kotak Sejajar + Cair 100% + Custom) & Dana Lain -->
+    <div id="fundUsageModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden my-6">
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h3 id="fundModalTitle" class="font-extrabold text-base text-slate-900">Catat Pencairan Laba Bersih</h3>
+                <button type="button" onclick="closeFundUsageModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-200 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+
+            <form id="fundUsageForm" onsubmit="saveFundUsage(event)" class="p-5 space-y-4">
+                <input type="hidden" id="fundCategory" value="laba">
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Tanggal Pencairan / Transaksi</label>
+                    <input type="date" id="fundDate" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                </div>
+
+                <!-- 3 Kotak Persegi Kecil Sejajar untuk Pilihan Pencairan Laba Bersih -->
+                <div id="labaChecklistSection" class="space-y-2.5">
+                    <label class="block text-xs font-bold text-slate-700">Pilih Pos yang Akan Dicairkan (Wajib Centang Minimal 1) *</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <!-- Kotak 1: Sendiri -->
+                        <div id="boxCheckSendiri" onclick="toggleLabaBox('sendiri')" class="border-2 border-slate-200 rounded-xl p-2.5 cursor-pointer transition select-none bg-white hover:border-blue-400 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-extrabold text-slate-800">Sendiri</span>
+                                    <input type="checkbox" id="chkLabaSendiri" onclick="event.stopPropagation(); syncLabaBoxUI('sendiri')" class="w-4 h-4 accent-blue-600 rounded cursor-pointer">
+                                </div>
+                                <div id="balLabaSendiri" class="text-[11px] font-bold text-blue-700">Rp 0</div>
+                            </div>
+                            <button type="button" onclick="event.stopPropagation(); fill100SingleLaba('sendiri')" class="mt-2 w-full py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-extrabold border border-blue-200 cursor-pointer">
+                                Cair 100%
+                            </button>
+                        </div>
+
+                        <!-- Kotak 2: Istri -->
+                        <div id="boxCheckIstri" onclick="toggleLabaBox('istri')" class="border-2 border-slate-200 rounded-xl p-2.5 cursor-pointer transition select-none bg-white hover:border-pink-400 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-extrabold text-slate-800">Istri</span>
+                                    <input type="checkbox" id="chkLabaIstri" onclick="event.stopPropagation(); syncLabaBoxUI('istri')" class="w-4 h-4 accent-pink-600 rounded cursor-pointer">
+                                </div>
+                                <div id="balLabaIstri" class="text-[11px] font-bold text-pink-700">Rp 0</div>
+                            </div>
+                            <button type="button" onclick="event.stopPropagation(); fill100SingleLaba('istri')" class="mt-2 w-full py-1 rounded-lg bg-pink-50 hover:bg-pink-100 text-pink-700 text-[10px] font-extrabold border border-pink-200 cursor-pointer">
+                                Cair 100%
+                            </button>
+                        </div>
+
+                        <!-- Kotak 3: Teknisi -->
+                        <div id="boxCheckTeknisi" onclick="toggleLabaBox('teknisi')" class="border-2 border-slate-200 rounded-xl p-2.5 cursor-pointer transition select-none bg-white hover:border-amber-400 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-extrabold text-slate-800">Teknisi</span>
+                                    <input type="checkbox" id="chkLabaTeknisi" onclick="event.stopPropagation(); syncLabaBoxUI('teknisi')" class="w-4 h-4 accent-amber-600 rounded cursor-pointer">
+                                </div>
+                                <div id="balLabaTeknisi" class="text-[11px] font-bold text-amber-700">Rp 0</div>
+                            </div>
+                            <button type="button" onclick="event.stopPropagation(); fill100SingleLaba('teknisi')" class="mt-2 w-full py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-extrabold border border-amber-200 cursor-pointer">
+                                Cair 100%
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 text-xs">
+                        <span class="text-slate-600 font-medium">Saldo Pos Terpilih: <strong id="selectedLabaMaxText" class="text-slate-900">Rp 0</strong></span>
+                        <button type="button" onclick="fill100SelectedLaba()" class="text-blue-600 font-extrabold hover:underline cursor-pointer">Cairkan 100% Terpilih</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Nominal Dicairkan / Digunakan (Rp) *</label>
+                    <input type="number" id="fundAmount" required min="1" placeholder="Isi nominal custom atau klik Cair 100%" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Keterangan / Catatan Detail</label>
+                    <input type="text" id="fundNote" placeholder="Contoh: Pencairan laba bersih / gaji istri" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="closeFundUsageModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer">Batal</button>
+                    <button type="submit" id="submitFundUsageBtn" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm cursor-pointer">Simpan & Catat Riwayat</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 3: Cetak Struk / Nota Pelanggan & Bagikan ke Bluetooth Printer / WA -->
+    <div id="receiptModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden my-6">
+            <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-extrabold text-sm text-slate-900">Nota Service Pelanggan</h3>
+                <button type="button" onclick="closeReceiptModal()" class="p-1 rounded-lg text-slate-400 hover:bg-slate-200 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+            <div id="printableArea" class="p-5 bg-white text-slate-900 text-xs font-mono space-y-2">
+                <div id="receiptContent"></div>
+            </div>
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap gap-2 justify-between">
+                <button type="button" onclick="shareReceiptAsImage()" class="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer">
+                    Bagikan / Bluetooth Print
+                </button>
+                <button type="button" onclick="shareReceiptAsText()" class="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">
+                    Teks
+                </button>
+                <button type="button" onclick="window.print()" class="py-2.5 px-3 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold cursor-pointer">
+                    Print
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 4: Print / Bagikan Label Teknisi -->
+    <div id="techLabelModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-extrabold text-sm text-slate-900">Label Unit Teknisi</h3>
+                <button type="button" onclick="closeTechLabelModal()" class="p-1 rounded-lg text-slate-400 hover:bg-slate-200 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+            <div id="techLabelContent" class="p-4 text-xs font-mono bg-white"></div>
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex gap-2">
+                <button type="button" onclick="shareTechLabelAsImage()" class="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold cursor-pointer">
+                    Bagikan / Bluetooth Print
+                </button>
+                <button type="button" onclick="closeTechLabelModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 cursor-pointer">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 5: Cek Garansi Publik / IMEI -->
+    <div id="warrantyCheckModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <h3 class="font-extrabold text-base text-slate-900">Cek Status & Masa Garansi HP</h3>
+                <button type="button" onclick="closeWarrantyModal()" class="p-1 rounded-lg text-slate-400 hover:bg-slate-100 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+            <input type="text" id="warrantyQueryInput" oninput="runWarrantySearch()" placeholder="Ketik Nama Pelanggan, Tipe HP, atau IMEI..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+            <div id="warrantyResultBox" class="max-h-64 overflow-y-auto space-y-2 text-xs"></div>
+        </div>
+    </div>
+
+    <!-- Modal 6: Pengaturan Konter, Bagi Hasil & Keamanan PIN -->
+    <div id="settingsModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden my-6">
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-extrabold text-base text-slate-900">Pengaturan Konter & Keamanan</h3>
+                <button type="button" onclick="closeSettingsModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-200 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+            <form onsubmit="saveLocalSettings(event)" class="p-5 space-y-3.5">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Nama Konter Service HP</label>
+                    <input type="text" id="setShopName" required class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Alamat & No. HP Konter (Untuk Nota)</label>
+                    <input type="text" id="setShopAddress" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Tabungan Alat (%)</label>
+                        <input type="number" id="setToolPct" step="0.5" min="0" max="50" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Dana Sedekah (%)</label>
+                        <input type="number" id="setCharityPct" step="0.5" min="0" max="50" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">PIN Kunci Layar Aplikasi (4-6 Angka, Kosongkan = Nonaktif)</label>
+                    <input type="password" id="setSecurityPin" maxlength="6" inputmode="numeric" placeholder="Contoh: 1234" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm tracking-widest">
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="closeSettingsModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 cursor-pointer">Batal</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">Simpan Pengaturan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 7: Tambah Stok Sparepart -->
+    <div id="stockItemModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <h3 class="font-extrabold text-base text-slate-900">Tambah Stok Sparepart</h3>
+                <button type="button" onclick="closeStockModal()" class="p-1 rounded-lg text-slate-400 hover:bg-slate-100 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+            <form onsubmit="saveStockItem(event)" class="space-y-3">
+                <input type="text" id="stockName" required placeholder="Nama Part (mis. LCD Redmi 9A)" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="number" id="stockQty" required min="1" value="1" placeholder="Jumlah Stok" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+                    <input type="number" id="stockBuyPrice" required min="0" placeholder="Harga Modal Satuan" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeStockModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 cursor-pointer">Batal</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold cursor-pointer">Simpan Stok</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 8: Catat Inventaris Alat Service -->
+    <div id="toolAssetModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <h3 class="font-extrabold text-base text-slate-900">Catat Inventaris Alat Service</h3>
+                <button type="button" onclick="closeToolAssetModal()" class="p-1 rounded-lg text-slate-400 hover:bg-slate-100 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+            <form onsubmit="saveToolAsset(event)" class="space-y-3">
+                <input type="text" id="toolName" required placeholder="Nama Alat (mis. Blower Quick 857DW+)" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="date" id="toolDate" required class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
+                    <input type="number" id="toolPrice" required min="0" placeholder="Harga Beli (Rp)" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeToolAssetModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 cursor-pointer">Batal</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold cursor-pointer">Simpan Alat</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 9: Backup & Restore Data (Excel .xlsx / .csv & JSON) -->
+    <div id="backupRestoreModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden my-6">
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-extrabold text-base text-slate-900">Backup & Restore Data Konter</h3>
+                <button type="button" onclick="closeBackupRestoreModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-200 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="space-y-2">
+                    <div class="text-xs font-extrabold uppercase text-slate-500">1. Unduh File Cadangan (Backup)</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button type="button" onclick="exportBackupJson()" class="p-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold text-center cursor-pointer">
+                            Backup Khusus Aplikasi (.JSON)
+                        </button>
+                        <button type="button" onclick="exportBackupExcel()" class="p-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold text-center cursor-pointer">
+                            Export Tabel Excel (.XLSX)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-200 pt-4 space-y-2.5">
+                    <div class="text-xs font-extrabold uppercase text-slate-500">2. Pulihkan Data dari File (Restore)</div>
+                    <p class="text-xs text-slate-500">Mendukung file <strong>.json</strong> (termasuk backup versi lama) maupun file Excel <strong>.xlsx / .xls / .csv</strong>.</p>
+                    <div class="flex gap-3 text-xs font-bold text-slate-700">
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="restoreMode" value="merge" checked class="accent-blue-600"> Gabungkan Data
+                        </label>
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="restoreMode" value="replace" class="accent-rose-600"> Timpa Semua Data
+                        </label>
+                    </div>
+                    <input type="file" id="restoreFileInput" accept=".json,.xlsx,.xls,.csv" class="w-full text-xs border border-slate-300 rounded-xl p-2 bg-slate-50">
+                    <button type="button" onclick="processRestoreFile()" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">
+                        Proses Restore Sekarang
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay Kunci Layar PIN -->
+    <div id="pinLockOverlay" class="fixed inset-0 bg-slate-900/95 z-[100] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-xs w-full p-6 shadow-2xl text-center space-y-4">
+            <div class="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 mx-auto flex items-center justify-center">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            <div>
+                <h3 class="font-extrabold text-base text-slate-900">Aplikasi Terkunci</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Masukkan PIN keamanan konter untuk melanjutkan.</p>
+            </div>
+            <input type="password" id="pinUnlockInput" maxlength="6" inputmode="numeric" onkeydown="if(event.key==='Enter') verifyUnlockPin()" placeholder="••••" class="w-full text-center text-xl font-extrabold tracking-[0.5em] py-2.5 rounded-xl border border-slate-300">
+            <p id="pinErrorText" class="hidden text-xs font-bold text-rose-600">PIN salah, silakan coba lagi.</p>
+            <button type="button" onclick="verifyUnlockPin()" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">Buka Kunci</button>
+        </div>
+    </div>
+
+    <!-- Overlay Setup Awal Kode Unik Konter (Wajib Diisi Pertama Kali) -->
+    <div id="initialRoomSetupOverlay" class="fixed inset-0 bg-slate-900/90 z-[110] hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-6">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                </div>
+                <div>
+                    <h2 class="font-extrabold text-base sm:text-lg text-slate-900 leading-tight">Aktivasi Kode Unik Konter</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Buat kode unik baru untuk konter Anda atau gabung ke kode konter yang sudah ada.</p>
+                </div>
+            </div>
+
+            <form onsubmit="completeInitialRoomSetup(event)" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Nama Konter / Tempat Service *</label>
+                    <input type="text" id="initShopNameInput" required placeholder="Contoh: Berkah Cell Service HP" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Kode Unik Sinkronisasi (Min. 4 Karakter) *</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="initRoomCodeInput" required minlength="4" placeholder="Contoh: BERKAHCELL88" class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 font-extrabold uppercase tracking-wider text-sm focus:outline-none focus:border-blue-500">
+                        <button type="button" onclick="generateInitialRandomCode()" class="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer">Acak Kode</button>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                        • <strong>Konter Baru:</strong> Buat kode unik khusus agar tidak bentrok dengan konter lain.<br>
+                        • <strong>Perangkat Tambahan (HP/PC ke-2):</strong> Masukkan kode unik yang sama dengan perangkat utama, lalu klik <strong>Izinkan Masuk</strong> pada perangkat utama.
+                    </p>
+                </div>
+
+                <button type="submit" class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-extrabold shadow-md cursor-pointer transition">
+                    Mulai Gunakan Aplikasi
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. STATE & PENYIMPANAN LOKAL
+        // =========================================================================
+        const STORAGE_KEYS = {
+            SERVICES: 'profix_services_v3',
+            FUND_LOGS: 'profix_fund_logs_v3',
+            STOCKS: 'profix_stocks_v3',
+            TOOLS: 'profix_tools_v3',
+            SETTINGS: 'profix_settings_v3',
+            ROOM_CODE: 'profix_room_code_v3',
+            DEVICE_ID: 'profix_device_id_v3',
+            ROOM_AUTH: 'profix_room_auth_v3'
+        };
+
+        function getOrCreateDeviceId() {
+            let id = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+            if (!id) {
+                id = 'DEV-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString(36).toUpperCase();
+                localStorage.setItem(STORAGE_KEYS.DEVICE_ID, id);
+            }
+            return id;
+        }
+
+        function getDeviceLabel() {
+            const ua = navigator.userAgent || '';
+            if (/android/i.test(ua)) return 'HP Android';
+            if (/iPad|iPhone|iPod/.test(ua)) return 'iPhone / iPad';
+            if (/Windows/i.test(ua)) return 'PC Windows';
+            if (/Mac/i.test(ua)) return 'MacBook / Mac';
+            return 'Perangkat Browser';
+        }
+
+        const MY_DEVICE_ID = getOrCreateDeviceId();
+        const MY_DEVICE_NAME = getDeviceLabel();
+
+        let serviceRecords = JSON.parse(localStorage.getItem(STORAGE_KEYS.SERVICES) || '[]');
+        let fundUsageLogs = JSON.parse(localStorage.getItem(STORAGE_KEYS.FUND_LOGS) || '[]');
+        let stockItems = JSON.parse(localStorage.getItem(STORAGE_KEYS.STOCKS) || '[]');
+        let toolAssets = JSON.parse(localStorage.getItem(STORAGE_KEYS.TOOLS) || '[]');
+        let appSettings = Object.assign({
+            shopName: 'ProFix Service HP',
+            shopAddress: 'Jl. Raya Konter HP No. 1',
+            toolPct: 10,
+            charityPct: 2.5,
+            securityPin: ''
+        }, JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}'));
+
+        let roomAuthRegistry = JSON.parse(localStorage.getItem(STORAGE_KEYS.ROOM_AUTH) || '{}');
+        let activeRoomCode = (localStorage.getItem(STORAGE_KEYS.ROOM_CODE) || '').trim().toUpperCase();
+
+        function saveRoomAuthRegistry() {
+            localStorage.setItem(STORAGE_KEYS.ROOM_AUTH, JSON.stringify(roomAuthRegistry));
+        }
+
+        function generateInitialRandomCode() {
+            const rawShop = (document.getElementById('initShopNameInput')?.value || 'KONTER').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6) || 'KONTER';
+            const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+            document.getElementById('initRoomCodeInput').value = `${rawShop}-${rand}`;
+        }
+
+        function openInitialRoomSetupOverlay() {
+            document.getElementById('initShopNameInput').value = appSettings.shopName && appSettings.shopName !== 'ProFix Service HP' ? appSettings.shopName : '';
+            document.getElementById('initRoomCodeInput').value = '';
+            showModalById('initialRoomSetupOverlay');
+        }
+
+        function completeInitialRoomSetup(e) {
+            e.preventDefault();
+            const shopNameVal = (document.getElementById('initShopNameInput').value || '').trim();
+            const codeVal = (document.getElementById('initRoomCodeInput').value || '').trim().toUpperCase().replace(/\s+/g, '');
+
+            if (!shopNameVal) {
+                showToast('Masukkan nama konter / tempat service terlebih dahulu!', 'warning');
+                return;
+            }
+            if (!codeVal || codeVal.length < 4) {
+                showToast('Kode unik minimal 4 karakter!', 'warning');
+                return;
+            }
+
+            appSettings.shopName = shopNameVal;
+            activeRoomCode = codeVal;
+            localStorage.setItem(STORAGE_KEYS.ROOM_CODE, activeRoomCode);
+
+            if (!roomAuthRegistry[activeRoomCode]) {
+                roomAuthRegistry[activeRoomCode] = {
+                    ownerId: '',
+                    approvedDevices: {}
+                };
+                saveRoomAuthRegistry();
+            }
+
+            persistAllLocalData();
+            applySettingsToUI();
+            hideModalById('initialRoomSetupOverlay');
+            initInstantRealtimeSync();
+            showToast(`Kode unik ${activeRoomCode} aktif!`, 'success');
+        }
+
+        function persistAllLocalData() {
+            localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(serviceRecords));
+            localStorage.setItem(STORAGE_KEYS.FUND_LOGS, JSON.stringify(fundUsageLogs));
+            localStorage.setItem(STORAGE_KEYS.STOCKS, JSON.stringify(stockItems));
+            localStorage.setItem(STORAGE_KEYS.TOOLS, JSON.stringify(toolAssets));
+            localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(appSettings));
+        }
+
+        // =========================================================================
+        // 2. PEMBANTU MODAL & NAVIGASI TAB (RESPONSIF PADA KLIK PERTAMA)
+        // =========================================================================
+        function showModalById(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('hidden');
+            el.classList.add('flex');
+            el.style.display = 'flex';
+            void el.offsetHeight;
+        }
+
+        function hideModalById(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.add('hidden');
+            el.classList.remove('flex');
+            el.style.display = 'none';
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('bg-blue-600', 'text-white');
+                b.classList.add('text-slate-600', 'hover:bg-slate-100');
+            });
+
+            const targetPanel = document.getElementById('tabContent-' + tabName);
+            const targetBtn = document.getElementById('tabBtn-' + tabName);
+            if (targetPanel) targetPanel.classList.remove('hidden');
+            if (targetBtn) {
+                targetBtn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+                targetBtn.classList.add('bg-blue-600', 'text-white');
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const colors = {
+                success: 'bg-emerald-600 text-white',
+                error: 'bg-rose-600 text-white',
+                warning: 'bg-amber-600 text-white',
+                info: 'bg-slate-800 text-white'
+            };
+            const toast = document.createElement('div');
+            toast.className = `${colors[type] || colors.info} px-4 py-2.5 rounded-xl shadow-lg text-xs font-bold transition-all duration-300`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function formatRupiah(num) {
+            const val = Math.round(Number(num) || 0);
+            return 'Rp ' + val.toLocaleString('id-ID');
+        }
+
+        function formatDateIndo(isoStr) {
+            if (!isoStr) return '-';
+            const d = new Date(isoStr);
+            if (isNaN(d.getTime())) return isoStr;
+            return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function getTodayIso() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+        // =========================================================================
+        // 3. PERHITUNGAN KEUANGAN & BAGI HASIL OTOMATIS
+        // =========================================================================
+        function calculateRecordFinancials(rec) {
+            const totalCost = Number(rec.totalCost) || 0;
+            const partCost = Number(rec.partCost) || 0;
+            const transportCost = Number(rec.transportCost) || 0;
+            const paidAmount = Number(rec.paidAmount) || 0;
+            const piutang = Math.max(0, totalCost - paidAmount);
+            const isPaidOff = piutang === 0 && totalCost > 0;
+
+            // Omzet hanya menghitung uang yang sudah masuk
+            const omzetMasuk = paidAmount;
+            const totalModal = partCost + transportCost;
+
+            // Laba kotor dihitung jika sudah lunas (atau dari selisih uang masuk dikurangi modal)
+            const grossProfit = rec.status === 'Batal' ? 0 : Math.max(0, omzetMasuk - totalModal);
+            const toolPct = Number(appSettings.toolPct) || 0;
+            const charityPct = Number(appSettings.charityPct) || 0;
+
+            const toolAllocation = Math.round(grossProfit * (toolPct / 100));
+            const charityAllocation = Math.round(grossProfit * (charityPct / 100));
+            const netAfterFunds = Math.max(0, grossProfit - toolAllocation - charityAllocation);
+
+            let profitSendiri = 0;
+            let profitIstri = 0;
+            let profitTeknisi = 0;
+
+            if (rec.workerType === 'Istri') {
+                profitIstri = netAfterFunds;
+            } else if (rec.workerType === 'Teknisi') {
+                const techPct = Math.min(100, Math.max(0, Number(rec.techSharePct) || 50));
+                profitTeknisi = Math.round(netAfterFunds * (techPct / 100));
+                profitSendiri = Math.max(0, netAfterFunds - profitTeknisi);
+            } else {
+                profitSendiri = netAfterFunds;
+            }
+
+            return {
+                totalCost,
+                partCost,
+                transportCost,
+                paidAmount,
+                piutang,
+                isPaidOff,
+                omzetMasuk,
+                totalModal,
+                grossProfit,
+                toolAllocation,
+                charityAllocation,
+                netAfterFunds,
+                profitSendiri,
+                profitIstri,
+                profitTeknisi
+            };
+        }
+
+        function getOverallBalances() {
+            let totalOmzet = 0;
+            let totalModal = 0;
+            let totalPiutang = 0;
+            let totalHutangPart = 0;
+
+            let grossToolFund = 0;
+            let grossCharityFund = 0;
+            let grossSendiri = 0;
+            let grossIstri = 0;
+            let grossTeknisi = 0;
+
+            serviceRecords.forEach(r => {
+                const f = calculateRecordFinancials(r);
+                totalOmzet += f.omzetMasuk;
+                totalModal += f.totalModal;
+                totalPiutang += f.piutang;
+                if (r.partDebtStatus === 'HUTANG') {
+                    totalHutangPart += f.partCost;
+                }
+                grossToolFund += f.toolAllocation;
+                grossCharityFund += f.charityAllocation;
+                grossSendiri += f.profitSendiri;
+                grossIstri += f.profitIstri;
+                grossTeknisi += f.profitTeknisi;
+            });
+
+            let usedSendiri = 0;
+            let usedIstri = 0;
+            let usedTeknisi = 0;
+            let usedOperasional = 0;
+            let usedTool = 0;
+            let usedCharity = 0;
+
+            fundUsageLogs.forEach(log => {
+                const amt = Number(log.amount) || 0;
+                if (log.category === 'laba') {
+                    if (log.breakdown) {
+                        usedSendiri += Number(log.breakdown.sendiri) || 0;
+                        usedIstri += Number(log.breakdown.istri) || 0;
+                        usedTeknisi += Number(log.breakdown.teknisi) || 0;
+                    } else {
+                        usedSendiri += amt;
+                    }
+                } else if (log.category === 'operasional') {
+                    usedOperasional += amt;
+                } else if (log.category === 'alat') {
+                    usedTool += amt;
+                } else if (log.category === 'sedekah') {
+                    usedCharity += amt;
+                }
+            });
+
+            const availSendiri = Math.max(0, grossSendiri - usedSendiri - usedOperasional);
+            const availIstri = Math.max(0, grossIstri - usedIstri);
+            const availTeknisi = Math.max(0, grossTeknisi - usedTeknisi);
+            const availNetProfit = availSendiri + availIstri + availTeknisi;
+
+            const availTool = Math.max(0, grossToolFund - usedTool);
+            const availCharity = Math.max(0, grossCharityFund - usedCharity);
+
+            return {
+                totalOmzet,
+                totalModal,
+                totalPiutang,
+                totalHutangPart,
+                availSendiri,
+                availIstri,
+                availTeknisi,
+                availNetProfit,
+                availTool,
+                usedTool,
+                availCharity,
+                usedCharity
+            };
+        }
+
+        function getWarrantyInfo(rec) {
+            const days = Number(rec.warrantyDays) || 0;
+            if (days <= 0) {
+                return { status: 'NONE', label: 'Tanpa Garansi', expDateStr: '-' };
+            }
+            const baseDateStr = rec.dateOut || rec.dateIn || getTodayIso();
+            const start = new Date(baseDateStr);
+            const exp = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
+            const now = new Date();
+            const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+            const expDateStr = formatDateIndo(exp.toISOString().split('T')[0]);
+
+            if (diffDays >= 0) {
+                return { status: 'ACTIVE', label: `Aktif (${diffDays} hari lagi)`, expDateStr };
+            }
+            return { status: 'EXPIRED', label: 'Habis Garansi', expDateStr };
+        }
+
+        // =========================================================================
+        // 4. RENDER SELURUH TAMPILAN
+        // =========================================================================
+        function renderAllViews() {
+            const b = getOverallBalances();
+            document.getElementById('statTotalOmzet').textContent = formatRupiah(b.totalOmzet);
+            document.getElementById('statTotalModal').textContent = formatRupiah(b.totalModal);
+
+            document.getElementById('statNetProfit').textContent = formatRupiah(b.availNetProfit);
+            document.getElementById('statProfitSendiri').textContent = formatRupiah(b.availSendiri);
+            document.getElementById('statProfitIstri').textContent = formatRupiah(b.availIstri);
+            document.getElementById('statProfitTeknisi').textContent = formatRupiah(b.availTeknisi);
+
+            document.getElementById('statToolFund').textContent = formatRupiah(b.availTool);
+            document.getElementById('statToolUsed').textContent = formatRupiah(b.usedTool);
+
+            document.getElementById('statCharityFund').textContent = formatRupiah(b.availCharity);
+            document.getElementById('statCharityUsed').textContent = formatRupiah(b.usedCharity);
+
+            document.getElementById('statTotalPiutang').textContent = formatRupiah(b.totalPiutang);
+            document.getElementById('statTotalHutangPart').textContent = formatRupiah(b.totalHutangPart);
+
+            renderServicesTable();
+            renderDebtsTab();
+            renderFundLogsTable();
+            renderInventoryTab();
+            renderMonthlyReport();
+        }
+
+        function renderServicesTable() {
+            const tbody = document.getElementById('servicesTableBody');
+            const emptyState = document.getElementById('emptyServicesState');
+            const query = (document.getElementById('searchInput')?.value || '').toLowerCase();
+            const statusF = document.getElementById('statusFilter')?.value || 'ALL';
+            const warrantyF = document.getElementById('warrantyFilter')?.value || 'ALL';
+
+            const filtered = serviceRecords.filter(r => {
+                const wInfo = getWarrantyInfo(r);
+                const matchQuery = !query ||
+                    (r.custName || '').toLowerCase().includes(query) ||
+                    (r.phoneModel || '').toLowerCase().includes(query) ||
+                    (r.phoneImei || '').toLowerCase().includes(query) ||
+                    (r.issueDesc || '').toLowerCase().includes(query);
+                const matchStatus = statusF === 'ALL' || r.status === statusF;
+                const matchWarranty = warrantyF === 'ALL' || wInfo.status === warrantyF;
+                return matchQuery && matchStatus && matchWarranty;
+            });
+
+            document.getElementById('badgeServicesCount').textContent = serviceRecords.length;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            const statusColors = {
+                'Antrean': 'bg-slate-100 text-slate-700 border-slate-300',
+                'Proses': 'bg-amber-50 text-amber-800 border-amber-300',
+                'Selesai': 'bg-blue-50 text-blue-800 border-blue-300',
+                'Diambil': 'bg-emerald-50 text-emerald-800 border-emerald-300',
+                'Batal': 'bg-rose-50 text-rose-700 border-rose-300'
+            };
+
+            tbody.innerHTML = filtered.map(r => {
+                const f = calculateRecordFinancials(r);
+                const w = getWarrantyInfo(r);
+                const workerBadge = r.workerType === 'Istri'
+                    ? `<span class="text-pink-700 font-bold">Laba Bersih (Istri): ${formatRupiah(f.profitIstri)}</span>`
+                    : r.workerType === 'Teknisi'
+                        ? `<span class="text-amber-700 font-bold">Konter: ${formatRupiah(f.profitSendiri)} | Teknisi (${r.techName || 'Partner'}): ${formatRupiah(f.profitTeknisi)}</span>`
+                        : `<span class="text-slate-800 font-bold">Laba Bersih (Sendiri): ${formatRupiah(f.profitSendiri)}</span>`;
+
+                return `
+                <tr class="hover:bg-slate-50/80 transition">
+                    <td class="py-3 px-4 align-top">
+                        <div class="font-extrabold text-slate-900">${escapeHtml(r.custName || 'Pelanggan')}</div>
+                        <div class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-semibold">
+                            <span>📱 ${escapeHtml(r.phoneModel || '-')}</span>
+                        </div>
+                        ${r.phoneImei ? `<div class="text-[10px] text-slate-400 mt-0.5">IMEI: ${escapeHtml(r.phoneImei)}</div>` : ''}
+                        ${r.phonePin ? `<div class="text-[10px] text-indigo-600 font-semibold mt-0.5">PIN/Pola: ${escapeHtml(r.phonePin)}</div>` : ''}
+                    </td>
+                    <td class="py-3 px-4 align-top">
+                        <div class="font-semibold text-slate-800">${escapeHtml(r.issueDesc || '-')}</div>
+                        ${r.accessories ? `<div class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10.5px] font-semibold">📦 Kelengkapan: ${escapeHtml(r.accessories)}</div>` : ''}
+                        <div class="text-[11px] text-slate-500 mt-1">Masuk: <strong>${formatDateIndo(r.dateIn)}</strong></div>
+                        ${r.dateOut ? `<div class="text-[11px] text-slate-500">Keluar: <strong>${formatDateIndo(r.dateOut)}</strong></div>` : ''}
+                    </td>
+                    <td class="py-3 px-4 align-top space-y-1.5">
+                        <select onchange="quickChangeStatus('${r.id}', this.value)" class="px-2.5 py-1 rounded-xl border text-xs font-bold cursor-pointer ${statusColors[r.status] || statusColors['Antrean']}">
+                            ${['Antrean', 'Proses', 'Selesai', 'Diambil', 'Batal'].map(st => `<option value="${st}" ${r.status === st ? 'selected' : ''}>${st}</option>`).join('')}
+                        </select>
+                        <div class="text-[11px] px-2 py-0.5 rounded-lg border ${w.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}">
+                            ${w.label}
+                        </div>
+                        ${w.expDateStr !== '-' ? `<div class="text-[10px] text-slate-400">s/d ${w.expDateStr}</div>` : ''}
+                    </td>
+                    <td class="py-3 px-4 align-top">
+                        <div class="font-extrabold text-slate-900">${formatRupiah(f.totalCost)}</div>
+                        <div class="text-[11px] text-slate-500">Part: ${formatRupiah(f.partCost)} | Trans: ${formatRupiah(f.transportCost)}</div>
+                        ${f.piutang > 0
+                            ? `<div class="text-[11px] font-bold text-rose-600 mt-0.5">Piutang: ${formatRupiah(f.piutang)} (Masuk: ${formatRupiah(f.paidAmount)})</div>`
+                            : `<div class="text-[11px] font-bold text-emerald-600 mt-0.5">✔ Pelanggan Lunas</div>`
+                        }
+                    </td>
+                    <td class="py-3 px-4 align-top text-[11px] space-y-0.5">
+                        <div>${workerBadge}</div>
+                        <div class="text-amber-700">Alat (${appSettings.toolPct}%): ${formatRupiah(f.toolAllocation)}</div>
+                        <div class="text-emerald-700">Sedekah (${appSettings.charityPct}%): ${formatRupiah(f.charityAllocation)}</div>
+                    </td>
+                    <td class="py-3 px-4 align-top text-right whitespace-nowrap">
+                        <div class="inline-flex items-center gap-1">
+                            <button type="button" onclick="openTechLabelModal('${r.id}')" class="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 cursor-pointer" title="Label Teknisi">🏷️</button>
+                            <button type="button" onclick="openReceiptModal('${r.id}')" class="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 cursor-pointer" title="Nota Pelanggan">🖨️</button>
+                            <button type="button" onclick="openServiceModal('${r.id}')" class="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 cursor-pointer" title="Edit Data">✏️</button>
+                            <button type="button" onclick="deleteServiceRecord('${r.id}')" class="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 cursor-pointer" title="Hapus Data">🗑️</button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderDebtsTab() {
+            const piutangItems = serviceRecords.filter(r => calculateRecordFinancials(r).piutang > 0);
+            const hutangItems = serviceRecords.filter(r => r.partDebtStatus === 'HUTANG' && (Number(r.partCost) || 0) > 0);
+
+            document.getElementById('badgeDebtsCount').textContent = piutangItems.length + hutangItems.length;
+
+            let totalP = 0;
+            document.getElementById('piutangListContainer').innerHTML = piutangItems.length === 0
+                ? `<p class="text-xs text-slate-400 py-4 text-center">Tidak ada piutang pelanggan yang belum lunas.</p>`
+                : piutangItems.map(r => {
+                    const f = calculateRecordFinancials(r);
+                    totalP += f.piutang;
+                    return `
+                    <div class="p-3 rounded-xl border border-rose-200 bg-rose-50/40 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-xs sm:text-sm text-slate-900">${escapeHtml(r.custName)} — ${escapeHtml(r.phoneModel)}</div>
+                            <div class="text-[11px] text-slate-600">Sisa Piutang: <strong class="text-rose-600">${formatRupiah(f.piutang)}</strong> (Total: ${formatRupiah(f.totalCost)})</div>
+                        </div>
+                        <button type="button" onclick="markCustomerPiutangPaid('${r.id}')" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 cursor-pointer">
+                            Lunasi
+                        </button>
+                    </div>`;
+                }).join('');
+            document.getElementById('debtTabPiutangTotal').textContent = formatRupiah(totalP);
+
+            let totalH = 0;
+            document.getElementById('hutangPartListContainer').innerHTML = hutangItems.length === 0
+                ? `<p class="text-xs text-slate-400 py-4 text-center">Tidak ada hutang sparepart ke supplier.</p>`
+                : hutangItems.map(r => {
+                    const part = Number(r.partCost) || 0;
+                    totalH += part;
+                    return `
+                    <div class="p-3 rounded-xl border border-amber-200 bg-amber-50/40 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="font-bold text-xs sm:text-sm text-slate-900">${escapeHtml(r.supplierName || 'Supplier Part')} (${escapeHtml(r.phoneModel)})</div>
+                            <div class="text-[11px] text-slate-600">Tagihan Part: <strong class="text-amber-700">${formatRupiah(part)}</strong></div>
+                        </div>
+                        <button type="button" onclick="markSupplierDebtPaid('${r.id}')" class="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 cursor-pointer">
+                            Bayar Lunas
+                        </button>
+                    </div>`;
+                }).join('');
+            document.getElementById('debtTabHutangTotal').textContent = formatRupiah(totalH);
+        }
+
+        function renderFundLogsTable() {
+            const tbody = document.getElementById('fundLogsTableBody');
+            if (fundUsageLogs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-400">Belum ada catatan pencairan laba atau pengeluaran dana.</td></tr>`;
+                return;
+            }
+            const catLabels = {
+                laba: '<span class="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 font-bold text-[11px]">Pencairan Laba Bersih</span>',
+                operasional: '<span class="px-2 py-0.5 rounded-lg bg-purple-50 text-purple-700 font-bold text-[11px]">Operasional Harian</span>',
+                alat: '<span class="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 font-bold text-[11px]">Tabungan Alat</span>',
+                sedekah: '<span class="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-[11px]">Dana Sedekah</span>'
+            };
+
+            tbody.innerHTML = fundUsageLogs.map(log => {
+                let detailBreakdown = '';
+                if (log.category === 'laba' && log.breakdown) {
+                    const parts = [];
+                    if (log.breakdown.sendiri > 0) parts.push(`Sendiri: ${formatRupiah(log.breakdown.sendiri)}`);
+                    if (log.breakdown.istri > 0) parts.push(`Istri: ${formatRupiah(log.breakdown.istri)}`);
+                    if (log.breakdown.teknisi > 0) parts.push(`Teknisi: ${formatRupiah(log.breakdown.teknisi)}`);
+                    detailBreakdown = `<div class="text-[11px] text-slate-500 mt-0.5">${parts.join(' • ')}</div>`;
+                }
+                return `
+                <tr>
+                    <td class="py-2.5 px-4 text-xs">${formatDateIndo(log.date)}</td>
+                    <td class="py-2.5 px-4">${catLabels[log.category] || log.category}${detailBreakdown}</td>
+                    <td class="py-2.5 px-4 font-extrabold text-slate-900">${formatRupiah(log.amount)}</td>
+                    <td class="py-2.5 px-4 text-xs text-slate-600">${escapeHtml(log.note || '-')}</td>
+                    <td class="py-2.5 px-4 text-right">
+                        <button type="button" onclick="deleteFundLog('${log.id}')" class="text-rose-600 hover:underline text-xs font-bold cursor-pointer">Hapus</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderInventoryTab() {
+            const stockBox = document.getElementById('stockListContainer');
+            stockBox.innerHTML = stockItems.length === 0
+                ? `<p class="text-xs text-slate-400 text-center py-6">Belum ada data stok sparepart.</p>`
+                : stockItems.map(s => `
+                    <div class="p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                        <div>
+                            <div class="font-bold text-xs sm:text-sm text-slate-800">${escapeHtml(s.name)}</div>
+                            <div class="text-[11px] text-slate-500">Modal: ${formatRupiah(s.buyPrice)} | Sisa Stok: <strong>${s.qty} pcs</strong></div>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="adjustStockQty('${s.id}', -1)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold cursor-pointer">-</button>
+                            <button type="button" onclick="adjustStockQty('${s.id}', 1)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold cursor-pointer">+</button>
+                            <button type="button" onclick="deleteStockItem('${s.id}')" class="p-1.5 text-rose-600 text-xs font-bold cursor-pointer">Hapus</button>
+                        </div>
+                    </div>`).join('');
+
+            const toolBox = document.getElementById('toolAssetListContainer');
+            toolBox.innerHTML = toolAssets.length === 0
+                ? `<p class="text-xs text-slate-400 text-center py-6">Belum ada daftar inventaris alat service.</p>`
+                : toolAssets.map(t => `
+                    <div class="p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                        <div>
+                            <div class="font-bold text-xs sm:text-sm text-slate-800">${escapeHtml(t.name)}</div>
+                            <div class="text-[11px] text-slate-500">Beli: ${formatDateIndo(t.date)} • Harga: <strong>${formatRupiah(t.price)}</strong></div>
+                        </div>
+                        <button type="button" onclick="deleteToolAsset('${t.id}')" class="text-rose-600 text-xs font-bold cursor-pointer">Hapus</button>
+                    </div>`).join('');
+        }
+
+        function renderMonthlyReport() {
+            const box = document.getElementById('monthlyReportContainer');
+            const byMonth = {};
+            serviceRecords.forEach(r => {
+                const m = (r.dateIn || getTodayIso()).slice(0, 7);
+                if (!byMonth[m]) byMonth[m] = { count: 0, omzet: 0, modal: 0, profit: 0 };
+                const f = calculateRecordFinancials(r);
+                byMonth[m].count += 1;
+                byMonth[m].omzet += f.omzetMasuk;
+                byMonth[m].modal += f.totalModal;
+                byMonth[m].profit += f.netAfterFunds;
+            });
+            const keys = Object.keys(byMonth).sort().reverse();
+            if (keys.length === 0) {
+                box.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">Belum ada data transaksi bulanan.</p>`;
+                return;
+            }
+            box.innerHTML = keys.map(k => {
+                const item = byMonth[k];
+                return `
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div>
+                        <span class="font-extrabold text-sm text-slate-900">Periode ${k}</span>
+                        <span class="ml-2 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">${item.count} Unit</span>
+                    </div>
+                    <div class="flex flex-wrap gap-4">
+                        <div>Omzet Masuk: <strong class="text-slate-900">${formatRupiah(item.omzet)}</strong></div>
+                        <div>Modal: <strong class="text-slate-700">${formatRupiah(item.modal)}</strong></div>
+                        <div>Laba Bersih: <strong class="text-blue-700">${formatRupiah(item.profit)}</strong></div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // =========================================================================
+        // 5. AKSI INPUT, EDIT, STATUS & PELUNASAN SERVICE HP
+        // =========================================================================
+        function openServiceModal(recordId = '') {
+            document.getElementById('serviceForm').reset();
+            document.getElementById('editRecordId').value = recordId || '';
+            document.getElementById('dateIn').value = getTodayIso();
+            document.getElementById('warrantyDays').value = 7;
+
+            if (recordId) {
+                const rec = serviceRecords.find(x => x.id === recordId);
+                if (rec) {
+                    document.getElementById('serviceModalTitle').textContent = 'Edit Data Service HP';
+                    document.getElementById('custName').value = rec.custName || '';
+                    document.getElementById('custPhone').value = rec.custPhone || '';
+                    document.getElementById('phoneModel').value = rec.phoneModel || '';
+                    document.getElementById('phoneImei').value = rec.phoneImei || '';
+                    document.getElementById('phonePin').value = rec.phonePin || '';
+                    document.getElementById('issueDesc').value = rec.issueDesc || '';
+                    document.getElementById('accessories').value = rec.accessories || '';
+                    document.getElementById('dateIn').value = rec.dateIn || getTodayIso();
+                    document.getElementById('dateOut').value = rec.dateOut || '';
+                    document.getElementById('serviceStatus').value = rec.status || 'Antrean';
+                    document.getElementById('warrantyDays').value = rec.warrantyDays ?? 7;
+                    document.getElementById('totalCost').value = rec.totalCost || 0;
+                    document.getElementById('partCost').value = rec.partCost || 0;
+                    document.getElementById('transportCost').value = rec.transportCost || 0;
+                    document.getElementById('paidAmount').value = rec.paidAmount || 0;
+                    document.getElementById('partDebtStatus').value = rec.partDebtStatus || 'LUNAS';
+                    document.getElementById('supplierName').value = rec.supplierName || '';
+                    document.getElementById('workerType').value = rec.workerType || 'Sendiri';
+                    document.getElementById('techName').value = rec.techName || '';
+                    document.getElementById('techSharePct').value = rec.techSharePct ?? 50;
+                }
+            } else {
+                document.getElementById('serviceModalTitle').textContent = 'Input Data Service HP Baru';
+            }
+
+            onWorkerTypeChange();
+            updateLiveProfitPreview();
+            showModalById('serviceModal');
+        }
+
+        function closeServiceModal() {
+            hideModalById('serviceModal');
+        }
+
+        function onWorkerTypeChange() {
+            const wt = document.getElementById('workerType').value;
+            const box = document.getElementById('techShareBox');
+            if (wt === 'Teknisi') box.classList.remove('hidden');
+            else box.classList.add('hidden');
+            updateLiveProfitPreview();
+        }
+
+        function setPaidFull100() {
+            document.getElementById('paidAmount').value = Number(document.getElementById('totalCost').value) || 0;
+            updateLiveProfitPreview();
+        }
+
+        function clearZeroOnFocus(el) {
+            if (!el) return;
+            if (String(el.value).trim() === '0') {
+                el.value = '';
+            }
+        }
+
+        function restoreZeroOnBlur(el) {
+            if (!el) return;
+            if (String(el.value).trim() === '') {
+                el.value = '0';
+                updateLiveProfitPreview();
+            }
+        }
+
+        function updateLiveProfitPreview() {
+            const temp = {
+                totalCost: Number(document.getElementById('totalCost').value) || 0,
+                partCost: Number(document.getElementById('partCost').value) || 0,
+                transportCost: Number(document.getElementById('transportCost').value) || 0,
+                paidAmount: Number(document.getElementById('paidAmount').value) || 0,
+                status: document.getElementById('serviceStatus').value,
+                workerType: document.getElementById('workerType').value,
+                techSharePct: Number(document.getElementById('techSharePct').value) || 50
+            };
+            const f = calculateRecordFinancials(temp);
+            document.getElementById('liveProfitPreview').innerHTML = `
+                <div>Sisa Piutang: <strong class="${f.piutang > 0 ? 'text-rose-600' : 'text-emerald-600'}">${formatRupiah(f.piutang)}</strong></div>
+                <div>Alat (${appSettings.toolPct}%): <strong class="text-amber-700">${formatRupiah(f.toolAllocation)}</strong></div>
+                <div>Sedekah (${appSettings.charityPct}%): <strong class="text-emerald-700">${formatRupiah(f.charityAllocation)}</strong></div>
+                <div>Laba Bersih: <strong class="text-blue-700">${formatRupiah(f.netAfterFunds)}</strong></div>
+            `;
+        }
+
+        function saveServiceRecord(e) {
+            e.preventDefault();
+            const editId = document.getElementById('editRecordId').value;
+            const statusVal = document.getElementById('serviceStatus').value;
+            let dateOutVal = document.getElementById('dateOut').value;
+            if ((statusVal === 'Selesai' || statusVal === 'Diambil') && !dateOutVal) {
+                dateOutVal = getTodayIso();
+            }
+
+            const payload = {
+                id: editId || ('SRV-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase()),
+                custName: document.getElementById('custName').value.trim(),
+                custPhone: document.getElementById('custPhone').value.trim(),
+                phoneModel: document.getElementById('phoneModel').value.trim(),
+                phoneImei: document.getElementById('phoneImei').value.trim(),
+                phonePin: document.getElementById('phonePin').value.trim(),
+                issueDesc: document.getElementById('issueDesc').value.trim(),
+                accessories: document.getElementById('accessories').value.trim(),
+                dateIn: document.getElementById('dateIn').value || getTodayIso(),
+                dateOut: dateOutVal,
+                status: statusVal,
+                warrantyDays: Number(document.getElementById('warrantyDays').value) || 0,
+                totalCost: Number(document.getElementById('totalCost').value) || 0,
+                partCost: Number(document.getElementById('partCost').value) || 0,
+                transportCost: Number(document.getElementById('transportCost').value) || 0,
+                paidAmount: Number(document.getElementById('paidAmount').value) || 0,
+                partDebtStatus: document.getElementById('partDebtStatus').value,
+                supplierName: document.getElementById('supplierName').value.trim(),
+                workerType: document.getElementById('workerType').value,
+                techName: document.getElementById('techName').value.trim(),
+                techSharePct: Number(document.getElementById('techSharePct').value) || 50,
+                updatedAt: Date.now()
+            };
+
+            if (editId) {
+                const idx = serviceRecords.findIndex(x => x.id === editId);
+                if (idx >= 0) serviceRecords[idx] = payload;
+            } else {
+                serviceRecords.unshift(payload);
+            }
+
+            persistAllLocalData();
+            renderAllViews();
+            closeServiceModal();
+            broadcastAllState();
+            showToast('Data service berhasil disimpan!', 'success');
+        }
+
+        function quickChangeStatus(id, newStatus) {
+            const rec = serviceRecords.find(x => x.id === id);
+            if (!rec) return;
+            rec.status = newStatus;
+            if ((newStatus === 'Selesai' || newStatus === 'Diambil') && !rec.dateOut) {
+                rec.dateOut = getTodayIso();
+            }
+            rec.updatedAt = Date.now();
+            persistAllLocalData();
+            renderAllViews();
+            broadcastAllState();
+            showToast(`Status diubah menjadi ${newStatus}`, 'info');
+        }
+
+        function markCustomerPiutangPaid(id) {
+            const rec = serviceRecords.find(x => x.id === id);
+            if (!rec) return;
+            rec.paidAmount = Number(rec.totalCost) || 0;
+            rec.updatedAt = Date.now();
+            persistAllLocalData();
+            renderAllViews();
+            broadcastAllState();
+            showToast('Piutang lunas & otomatis masuk ke Total Omzet!', 'success');
+        }
+
+        function markSupplierDebtPaid(id) {
+            const rec = serviceRecords.find(x => x.id === id);
+            if (!rec) return;
+            rec.partDebtStatus = 'LUNAS';
+            rec.updatedAt = Date.now();
+            persistAllLocalData();
+            renderAllViews();
+            broadcastAllState();
+            showToast('Hutang sparepart supplier ditandai lunas!', 'success');
+        }
+
+        function deleteServiceRecord(id) {
+            serviceRecords = serviceRecords.filter(x => x.id !== id);
+            persistAllLocalData();
+            renderAllViews();
+            broadcastAllState();
+            showToast('Data service dihapus', 'warning');
+        }
+
+        // =========================================================================
+        // 6. PENCAIRAN LABA BERSIH (3 KOTAK CEKLIS SEJAJAR + CAIR 100% + CUSTOM)
+        // =========================================================================
+        function openFundUsageModal(category = 'laba') {
+            document.getElementById('fundUsageForm').reset();
+            document.getElementById('fundCategory').value = category;
+            document.getElementById('fundDate').value = getTodayIso();
+
+            const b = getOverallBalances();
+            const checklistSec = document.getElementById('labaChecklistSection');
+            const titleEl = document.getElementById('fundModalTitle');
+            const noteEl = document.getElementById('fundNote');
+
+            if (category === 'laba') {
+                titleEl.textContent = 'Catat Pencairan / Tarik Laba Bersih';
+                noteEl.placeholder = 'Contoh: Pencairan laba bersih / gaji istri / bagi hasil teknisi';
+                checklistSec.classList.remove('hidden');
+
+                document.getElementById('balLabaSendiri').textContent = formatRupiah(b.availSendiri);
+                document.getElementById('balLabaIstri').textContent = formatRupiah(b.availIstri);
+                document.getElementById('balLabaTeknisi').textContent = formatRupiah(b.availTeknisi);
+
+                ['Sendiri', 'Istri', 'Teknisi'].forEach(k => {
+                    document.getElementById('chkLaba' + k).checked = false;
+                });
+                updateLabaBoxesAppearance();
+            } else {
+                checklistSec.classList.add('hidden');
+                if (category === 'operasional') {
+                    titleEl.textContent = 'Catat Pengeluaran Operasional Harian Konter';
+                    noteEl.placeholder = 'Contoh: Beli timah solder, lem LCD, tisu, token listrik';
+                } else if (category === 'alat') {
+                    titleEl.textContent = 'Catat Penggunaan Tabungan Alat';
+                    noteEl.placeholder = 'Contoh: Beli mata solder / blower / obeng presisi';
+                } else {
+                    titleEl.textContent = 'Catat Penyaluran Dana Sedekah';
+                    noteEl.placeholder = 'Contoh: Sedekah Jumat / santunan';
+                }
+            }
+
+            showModalById('fundUsageModal');
+        }
+
+        function closeFundUsageModal() {
+            hideModalById('fundUsageModal');
+        }
+
+        function toggleLabaBox(pos) {
+            const cap = pos.charAt(0).toUpperCase() + pos.slice(1);
+            const chk = document.getElementById('chkLaba' + cap);
+            if (!chk) return;
+            chk.checked = !chk.checked;
+            updateLabaBoxesAppearance();
+        }
+
+        function syncLabaBoxUI() {
+            updateLabaBoxesAppearance();
+        }
+
+        function updateLabaBoxesAppearance() {
+            const b = getOverallBalances();
+            const map = [
+                { key: 'Sendiri', bal: b.availSendiri, activeBorder: 'border-blue-600 bg-blue-50/60' },
+                { key: 'Istri', bal: b.availIstri, activeBorder: 'border-pink-600 bg-pink-50/60' },
+                { key: 'Teknisi', bal: b.availTeknisi, activeBorder: 'border-amber-600 bg-amber-50/60' }
+            ];
+            let selectedTotal = 0;
+            map.forEach(item => {
+                const chk = document.getElementById('chkLaba' + item.key);
+                const box = document.getElementById('boxCheck' + item.key);
+                if (chk && chk.checked) {
+                    selectedTotal += item.bal;
+                    box.className = `border-2 ${item.activeBorder} rounded-xl p-2.5 cursor-pointer transition select-none flex flex-col justify-between`;
+                } else {
+                    box.className = 'border-2 border-slate-200 rounded-xl p-2.5 cursor-pointer transition select-none bg-white hover:border-slate-300 flex flex-col justify-between';
+                }
+            });
+            document.getElementById('selectedLabaMaxText').textContent = formatRupiah(selectedTotal);
+        }
+
+        function fill100SingleLaba(pos) {
+            const b = getOverallBalances();
+            ['Sendiri', 'Istri', 'Teknisi'].forEach(k => {
+                document.getElementById('chkLaba' + k).checked = (k.toLowerCase() === pos);
+            });
+            updateLabaBoxesAppearance();
+            const val = pos === 'sendiri' ? b.availSendiri : pos === 'istri' ? b.availIstri : b.availTeknisi;
+            document.getElementById('fundAmount').value = val;
+        }
+
+        function fill100SelectedLaba() {
+            const b = getOverallBalances();
+            let total = 0;
+            if (document.getElementById('chkLabaSendiri').checked) total += b.availSendiri;
+            if (document.getElementById('chkLabaIstri').checked) total += b.availIstri;
+            if (document.getElementById('chkLabaTeknisi').checked) total += b.availTeknisi;
+            if (total <= 0) {
+                showToast('Centang minimal 1 kotak pos terlebih dahulu!', 'warning');
+                return;
+            }
+            document.getElementById('fundAmount').value = total;
+        }
+
+        function saveFundUsage(e) {
+            e.preventDefault();
+            const category = document.getElementById('fundCategory').value;
+            const amount = Number(document.getElementById('fundAmount').value) || 0;
+            const dateVal = document.getElementById('fundDate').value || getTodayIso();
+            const noteVal = document.getElementById('fundNote').value.trim();
+
+            if (amount <= 0) {
+                showToast('Masukkan nominal pencairan yang valid!', 'warning');
+                return;
+            }
+
+            let breakdown = null;
+            if (category === 'laba') {
+                const cSendiri = document.getElementById('chkLabaSendiri').checked;
+                const cIstri = document.getElementById('chkLabaIstri').checked;
+                const cTeknisi = document.getElementById('chkLabaTeknisi').checked;
+
+                if (!cSendiri && !cIstri && !cTeknisi) {
+                    showToast('Wajib centang minimal 1 kotak (Sendiri / Istri / Teknisi)!', 'error');
+                    return;
+                }
+
+                const b = getOverallBalances();
+                let rem = amount;
+                breakdown = { sendiri: 0, istri: 0, teknisi: 0 };
+
+                if (cSendiri && rem > 0) {
+                    const take = Math.min(rem, b.availSendiri || rem);
+                    breakdown.sendiri = take;
+                    rem -= take;
+                }
+                if (cIstri && rem > 0) {
+                    const take = Math.min(rem, b.availIstri || rem);
+                    breakdown.istri = take;
+                    rem -= take;
+                }
+                if (cTeknisi && rem > 0) {
+                    const take = Math.min(rem, b.availTeknisi || rem);
+                    breakdown.teknisi = take;
+                    rem -= take;
+                }
+                if (rem > 0) {
+                    if (cSendiri) breakdown.sendiri += rem;
+                    else if (cIstri) breakdown.istri += rem;
+                    else if (cTeknisi) breakdown.teknisi += rem;
+                }
+            }
+
+            fundUsageLogs.unshift({
+                id: 'LOG-' + Date.now() + '-' + Math.random().toString(36).substring(2, 5).toUpperCase(),
+                date: dateVal,
+                category,
+                amount,
+                breakdown,
+                note: noteVal,
+                updatedAt: Date.now()
+            });
+
+            persistAllLocalData();
+            renderAllViews();
+            closeFundUsageModal();
+            broadcastAllState();
+            switchTab('funds');
+            showToast('Transaksi & riwayat pencairan berhasil dicatat!', 'success');
+        }
+
+        function deleteFundLog(id) {
+            fundUsageLogs = fundUsageLogs.filter(x => x.id !== id);
+            persistAllLocalData();
+            renderAllViews();
+            broadcastAllState();
+            showToast('Riwayat mutasi dihapus', 'warning');
+        }
+
+        // =========================================================================
+        // 7. NOTA PELANGGAN, LABEL TEKNISI & SHARE BLUETOOTH PRINTER / WHATSAPP
+        // =========================================================================
+        let currentReceiptRecord = null;
+        let currentTechLabelRecord = null;
+
+        function openReceiptModal(id) {
+            const r = serviceRecords.find(x => x.id === id);
+            if (!r) return;
+            currentReceiptRecord = r;
+            const f = calculateRecordFinancials(r);
+            const w = getWarrantyInfo(r);
+
+            document.getElementById('receiptContent').innerHTML = `
+                <div class="text-center border-b border-dashed border-slate-400 pb-2">
+                    <div class="font-extrabold text-sm uppercase">${escapeHtml(appSettings.shopName)}</div>
+                    <div class="text-[11px]">${escapeHtml(appSettings.shopAddress)}</div>
+                </div>
+                <div class="space-y-1 py-2 border-b border-dashed border-slate-400">
+                    <div>No. Nota  : ${escapeHtml(r.id.slice(-8))}</div>
+                    <div>Tanggal   : ${formatDateIndo(r.dateIn)}</div>
+                    <div>Pelanggan : ${escapeHtml(r.custName)}</div>
+                    <div>Unit HP   : ${escapeHtml(r.phoneModel)}</div>
+                    ${r.phoneImei ? `<div>IMEI      : ${escapeHtml(r.phoneImei)}</div>` : ''}
+                    <div>Keluhan   : ${escapeHtml(r.issueDesc)}</div>
+                    <div>Status    : ${escapeHtml(r.status)}</div>
+                    <div>Garansi   : ${r.warrantyDays > 0 ? `${r.warrantyDays} Hari (s/d ${w.expDateStr})` : 'Tanpa Garansi'}</div>
+                </div>
+                <div class="space-y-1 py-2 border-b border-dashed border-slate-400">
+                    <div class="flex justify-between"><span>Total Biaya :</span><strong>${formatRupiah(f.totalCost)}</strong></div>
+                    <div class="flex justify-between"><span>Dibayar     :</span><span>${formatRupiah(f.paidAmount)}</span></div>
+                    <div class="flex justify-between"><span>Sisa Tagihan:</span><strong>${formatRupiah(f.piutang)}</strong></div>
+                </div>
+                <div class="text-center text-[10px] pt-1">
+                    Terima kasih atas kepercayaan Anda.<br>Simpan nota ini sebagai bukti klaim garansi.
+                </div>
+            `;
+            showModalById('receiptModal');
+        }
+
+        function closeReceiptModal() {
+            hideModalById('receiptModal');
+        }
+
+        function buildReceiptPlainText(r) {
+            const f = calculateRecordFinancials(r);
+            const w = getWarrantyInfo(r);
+            return [
+                `==============================`,
+                `${appSettings.shopName.toUpperCase()}`,
+                `${appSettings.shopAddress}`,
+                `==============================`,
+                `No Nota   : ${r.id.slice(-8)}`,
+                `Tanggal   : ${formatDateIndo(r.dateIn)}`,
+                `Pelanggan : ${r.custName}`,
+                `Unit HP   : ${r.phoneModel}`,
+                r.phoneImei ? `IMEI      : ${r.phoneImei}` : null,
+                `Keluhan   : ${r.issueDesc}`,
+                `Status    : ${r.status}`,
+                `Garansi   : ${r.warrantyDays > 0 ? r.warrantyDays + ' Hari (s/d ' + w.expDateStr + ')' : 'Tanpa Garansi'}`,
+                `------------------------------`,
+                `Total Biaya  : ${formatRupiah(f.totalCost)}`,
+                `Sudah Bayar  : ${formatRupiah(f.paidAmount)}`,
+                `Sisa Tagihan : ${formatRupiah(f.piutang)}`,
+                `==============================`,
+                `Terima kasih atas kunjungan Anda`
+            ].filter(Boolean).join('\n');
+        }
+
+        async function shareReceiptAsText() {
+            if (!currentReceiptRecord) return;
+            const txt = buildReceiptPlainText(currentReceiptRecord);
+            if (navigator.share) {
+                try {
+                    await navigator.share({ title: 'Nota Service HP', text: txt });
+                    return;
+                } catch (_) {}
+            }
+            copyTextFallback(txt);
+            showToast('Teks nota disalin ke clipboard (siap paste ke WA / Printer)!', 'success');
+        }
+
+        async function shareReceiptAsImage() {
+            if (!currentReceiptRecord) return;
+            const lines = buildReceiptPlainText(currentReceiptRecord).split('\n');
+            await renderLinesToThermalImageAndShare(lines, `Nota_${currentReceiptRecord.custName}.png`);
+        }
+
+        function openTechLabelModal(id) {
+            const r = serviceRecords.find(x => x.id === id);
+            if (!r) return;
+            currentTechLabelRecord = r;
+            document.getElementById('techLabelContent').innerHTML = `
+                <div class="border-2 border-slate-900 p-3 space-y-1">
+                    <div class="font-extrabold text-sm border-b border-slate-900 pb-1">${escapeHtml(r.custName)} — ${escapeHtml(r.phoneModel)}</div>
+                    <div>Tgl Masuk : ${formatDateIndo(r.dateIn)}</div>
+                    <div>Kerusakan : ${escapeHtml(r.issueDesc)}</div>
+                    <div>PIN / Pola: <strong>${escapeHtml(r.phonePin || '-')}</strong></div>
+                    <div>Kelengkap.: ${escapeHtml(r.accessories || '-')}</div>
+                    <div>Biaya Est.: ${formatRupiah(r.totalCost)}</div>
+                </div>
+            `;
+            showModalById('techLabelModal');
+        }
+
+        function closeTechLabelModal() {
+            hideModalById('techLabelModal');
+        }
+
+        async function shareTechLabelAsImage() {
+            if (!currentTechLabelRecord) return;
+            const r = currentTechLabelRecord;
+            const lines = [
+                `LABEL UNIT TEKNISI - ${appSettings.shopName}`,
+                `--------------------------------`,
+                `Pelanggan : ${r.custName}`,
+                `Tipe HP   : ${r.phoneModel}`,
+                `Tgl Masuk : ${formatDateIndo(r.dateIn)}`,
+                `Kerusakan : ${r.issueDesc}`,
+                `PIN/Pola  : ${r.phonePin || '-'}`,
+                `Kelengkap.: ${r.accessories || '-'}`,
+                `Estimasi  : ${formatRupiah(r.totalCost)}`,
+                `--------------------------------`
+            ];
+            await renderLinesToThermalImageAndShare(lines, `Label_${r.phoneModel}.png`);
+        }
+
+        async function renderLinesToThermalImageAndShare(lines, filename) {
+            const canvas = document.createElement('canvas');
+            const width = 576;
+            const lineHeight = 32;
+            const padding = 32;
+            canvas.width = width;
+            canvas.height = padding * 2 + lines.length * lineHeight;
+
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 21px monospace';
+
+            lines.forEach((line, idx) => {
+                ctx.fillText(line, padding, padding + (idx + 1) * lineHeight - 6);
+            });
+
+            canvas.toBlob(async (blob) => {
+                if (!blob) return;
+                const file = new File([blob], filename, { type: 'image/png' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: filename
+                        });
+                        return;
+                    } catch (_) {}
+                }
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                showToast('Gambar struk diunduh (siap dicetak lewat aplikasi Bluetooth Printer)!', 'success');
+            }, 'image/png');
+        }
+
+        function copyTextFallback(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+        }
+
+        // =========================================================================
+        // 8. CEK GARANSI, PENGATURAN, STOK, ALAT & PIN LAYAR
+        // =========================================================================
+        function openWarrantyModal() {
+            document.getElementById('warrantyQueryInput').value = '';
+            runWarrantySearch();
+            showModalById('warrantyCheckModal');
+        }
+
+        function closeWarrantyModal() {
+            hideModalById('warrantyCheckModal');
+        }
+
+        function runWarrantySearch() {
+            const q = (document.getElementById('warrantyQueryInput').value || '').toLowerCase().trim();
+            const box = document.getElementById('warrantyResultBox');
+            const list = q ? serviceRecords.filter(r =>
+                (r.custName || '').toLowerCase().includes(q) ||
+                (r.phoneModel || '').toLowerCase().includes(q) ||
+                (r.phoneImei || '').toLowerCase().includes(q)
+            ) : serviceRecords.slice(0, 8);
+
+            if (list.length === 0) {
+                box.innerHTML = `<p class="text-slate-400 text-center py-4">Tidak ditemukan data unit HP yang cocok.</p>`;
+                return;
+            }
+            box.innerHTML = list.map(r => {
+                const w = getWarrantyInfo(r);
+                return `
+                <div class="p-3 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                    <div>
+                        <div class="font-bold text-slate-900">${escapeHtml(r.custName)} — ${escapeHtml(r.phoneModel)}</div>
+                        <div class="text-slate-500">Kerusakan: ${escapeHtml(r.issueDesc)} • Selesai: ${formatDateIndo(r.dateOut || r.dateIn)}</div>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-lg font-bold shrink-0 ${w.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">${w.label}</span>
+                </div>`;
+            }).join('');
+        }
+
+        function openSettingsModal() {
+            document.getElementById('setShopName').value = appSettings.shopName || '';
+            document.getElementById('setShopAddress').value = appSettings.shopAddress || '';
+            document.getElementById('setToolPct').value = appSettings.toolPct ?? 10;
+            document.getElementById('setCharityPct').value = appSettings.charityPct ?? 2.5;
+            document.getElementById('setSecurityPin').value = appSettings.securityPin || '';
+            showModalById('settingsModal');
+        }
+
+        function closeSettingsModal() {
+            hideModalById('settingsModal');
+        }
+
+        function saveLocalSettings(e) {
+            e.preventDefault();
+            appSettings.shopName = document.getElementById('setShopName').value.trim() || 'ProFix Service HP';
+            appSettings.shopAddress = document.getElementById('setShopAddress').value.trim();
+            appSettings.toolPct = Number(document.getElementById('setToolPct').value) || 0;
+            appSettings.charityPct = Number(document.getElementById('setCharityPct').value) || 0;
+            appSettings.securityPin = (document.getElementById('setSecurityPin').value || '').trim();
+
+            persistAllLocalData();
+            applySettingsToUI();
+            renderAllViews();
+            closeSettingsModal();
+            broadcastAllState();
+            showToast('Pengaturan konter berhasil disimpan!', 'success');
+        }
+
+        function applySettingsToUI() {
+            document.getElementById('headerShopName').textContent = appSettings.shopName || 'ProFix Service HP';
+            document.title = `${appSettings.shopName} — Manajemen Konter & Keuangan`;
+            document.getElementById('labelCardTool').textContent = `Tabungan Alat (${appSettings.toolPct}%)`;
+            document.getElementById('labelCardCharity').textContent = `Dana Sedekah (${appSettings.charityPct}%)`;
+
+            const lockBtn = document.getElementById('lockScreenBtn');
+            if (appSettings.securityPin && appSettings.securityPin.length >= 4) {
+                lockBtn.classList.remove('hidden');
+            } else {
+                lockBtn.classList.add('hidden');
+            }
+        }
+
+        function lockAppScreen() {
+            if (!appSettings.securityPin || appSettings.securityPin.length < 4) return;
+            document.getElementById('pinUnlockInput').value = '';
+            document.getElementById('pinErrorText').classList.add('hidden');
+            showModalById('pinLockOverlay');
+        }
+
+        function verifyUnlockPin() {
+            const val = document.getElementById('pinUnlockInput').value.trim();
+            if (val === appSettings.securityPin) {
+                hideModalById('pinLockOverlay');
+            } else {
+                document.getElementById('pinErrorText').classList.remove('hidden');
+            }
+        }
+
+        function openStockModal() {
+            document.getElementById('stockName').value = '';
+            document.getElementById('stockQty').value = 1;
+            document.getElementById('stockBuyPrice').value = '';
+            showModalById('stockItemModal');
+        }
+        function closeStockModal() { hideModalById('stockItemModal'); }
+
+        function saveStockItem(e) {
+            e.preventDefault();
+            stockItems.unshift({
+                id: 'STK-' + Date.now(),
+                name: document.getElementById('stockName').value.trim(),
+                qty: Number(document.getElementById('stockQty').value) || 0,
+                buyPrice: Number(document.getElementById('stockBuyPrice').value) || 0,
+                updatedAt: Date.now()
+            });
+            persistAllLocalData();
+            renderInventoryTab();
+            closeStockModal();
+            broadcastAllState();
+            showToast('Stok sparepart ditambahkan!', 'success');
+        }
+
+        function adjustStockQty(id, delta) {
+            const item = stockItems.find(x => x.id === id);
+            if (!item) return;
+            item.qty = Math.max(0, (Number(item.qty) || 0) + delta);
+            item.updatedAt = Date.now();
+            persistAllLocalData();
+            renderInventoryTab();
+            broadcastAllState();
+        }
+
+        function deleteStockItem(id) {
+            stockItems = stockItems.filter(x => x.id !== id);
+            persistAllLocalData();
+            renderInventoryTab();
+            broadcastAllState();
+        }
+
+        function openToolAssetModal() {
+            document.getElementById('toolName').value = '';
+            document.getElementById('toolDate').value = getTodayIso();
+            document.getElementById('toolPrice').value = '';
+            showModalById('toolAssetModal');
+        }
+        function closeToolAssetModal() { hideModalById('toolAssetModal'); }
+
+        function saveToolAsset(e) {
+            e.preventDefault();
+            toolAssets.unshift({
+                id: 'TLS-' + Date.now(),
+                name: document.getElementById('toolName').value.trim(),
+                date: document.getElementById('toolDate').value || getTodayIso(),
+                price: Number(document.getElementById('toolPrice').value) || 0,
+                updatedAt: Date.now()
+            });
+            persistAllLocalData();
+            renderInventoryTab();
+            closeToolAssetModal();
+            broadcastAllState();
+            showToast('Inventaris alat berhasil dicatat!', 'success');
+        }
+
+        function deleteToolAsset(id) {
+            toolAssets = toolAssets.filter(x => x.id !== id);
+            persistAllLocalData();
+            renderInventoryTab();
+            broadcastAllState();
+        }
+
+        // =========================================================================
+        // 9. BACKUP & RESTORE (EXCEL .XLSX / .CSV & JSON LAMA/BARU)
+        // =========================================================================
+        function openBackupRestoreModal() {
+            document.getElementById('restoreFileInput').value = '';
+            showModalById('backupRestoreModal');
+        }
+
+        function closeBackupRestoreModal() {
+            hideModalById('backupRestoreModal');
+        }
+
+        function exportBackupJson() {
+            const bundle = {
+                app: 'ProFixServiceHP',
+                version: 3,
+                exportedAt: new Date().toISOString(),
+                settings: appSettings,
+                services: serviceRecords,
+                fundLogs: fundUsageLogs,
+                stocks: stockItems,
+                tools: toolAssets
+            };
+            const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Backup_${appSettings.shopName.replace(/\s+/g, '_')}_${getTodayIso()}.json`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            showToast('File backup .JSON berhasil diunduh!', 'success');
+        }
+
+        function exportBackupExcel() {
+            const rows = serviceRecords.map((r, idx) => {
+                const f = calculateRecordFinancials(r);
+                return {
+                    No: idx + 1,
+                    ID: r.id,
+                    Tanggal_Masuk: r.dateIn || '',
+                    Tanggal_Keluar: r.dateOut || '',
+                    Nama_Pelanggan: r.custName || '',
+                    No_HP: r.custPhone || '',
+                    Tipe_HP: r.phoneModel || '',
+                    IMEI: r.phoneImei || '',
+                    PIN_Pola: r.phonePin || '',
+                    Keluhan: r.issueDesc || '',
+                    Kelengkapan: r.accessories || '',
+                    Status: r.status || 'Antrean',
+                    Garansi_Hari: Number(r.warrantyDays) || 0,
+                    Total_Biaya: f.totalCost,
+                    Modal_Sparepart: f.partCost,
+                    Ongkos_Transport: f.transportCost,
+                    Sudah_Dibayar: f.paidAmount,
+                    Sisa_Piutang: f.piutang,
+                    Status_Hutang_Part: r.partDebtStatus || 'LUNAS',
+                    Nama_Supplier: r.supplierName || '',
+                    Dikerjakan_Oleh: r.workerType || 'Sendiri',
+                    Nama_Teknisi: r.techName || '',
+                    Persen_Teknisi: r.techSharePct ?? 50
+                };
+            });
+
+            if (typeof XLSX !== 'undefined') {
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Data_Service_HP');
+                XLSX.writeFile(wb, `Laporan_Service_${appSettings.shopName.replace(/\s+/g, '_')}_${getTodayIso()}.xlsx`);
+                showToast('File Excel (.xlsx) berhasil diunduh!', 'success');
+            } else {
+                showToast('Pustaka Excel belum termuat, gunakan Backup .JSON', 'warning');
+            }
+        }
+
+        function cleanNum(val) {
+            if (typeof val === 'number') return isNaN(val) ? 0 : val;
+            if (!val) return 0;
+            const cleaned = String(val).replace(/[^0-9.-]/g, '');
+            return Number(cleaned) || 0;
+        }
+
+        function pickFirstNum(obj, keys) {
+            for (const k of keys) {
+                if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') {
+                    return cleanNum(obj[k]);
+                }
+            }
+            return 0;
+        }
+
+        function findDynamicCustomerName(raw) {
+            const directKeys = [
+                'custName', 'Nama_Pelanggan', 'namaPelanggan', 'nama_pelanggan',
+                'customerName', 'customer_name', 'customer', 'nama', 'name',
+                'userName', 'user_name', 'user', 'clientName', 'client',
+                'pemilik', 'konsumen', 'namaUser', 'nama_user'
+            ];
+            for (const k of directKeys) {
+                const v = raw[k];
+                if (typeof v === 'string' && v.trim() && v.trim().toLowerCase() !== 'pelanggan') {
+                    return v.trim();
+                }
+                if (v && typeof v === 'object') {
+                    const nested = v.name || v.nama || v.fullName;
+                    if (typeof nested === 'string' && nested.trim()) return nested.trim();
+                }
+            }
+            for (const key of Object.keys(raw)) {
+                if (/(cust|nama|name|user|client|pemilik|konsumen)/i.test(key) && !/(shop|konter|tech|teknisi|supp|toko|part)/i.test(key)) {
+                    const v = raw[key];
+                    if (typeof v === 'string' && v.trim() && v.trim().toLowerCase() !== 'pelanggan') {
+                        return v.trim();
+                    }
+                }
+            }
+            return 'Pelanggan';
+        }
+
+        function pickFirstString(obj, exactKeys, regexPattern, excludePattern) {
+            for (const k of exactKeys) {
+                const v = obj[k];
+                if (typeof v === 'string' && v.trim() && v.trim() !== '-') return v.trim();
+                if (v && typeof v === 'object') {
+                    const nested = v.model || v.type || v.name || v.nama || v.desc || v.description;
+                    if (typeof nested === 'string' && nested.trim()) return nested.trim();
+                }
+            }
+            if (regexPattern) {
+                for (const key of Object.keys(obj)) {
+                    if (regexPattern.test(key) && (!excludePattern || !excludePattern.test(key))) {
+                        const v = obj[key];
+                        if (typeof v === 'string' && v.trim() && v.trim() !== '-') return v.trim();
+                    }
+                }
+            }
+            return '';
+        }
+
+        function findDynamicNumber(obj, exactKeys, regexPattern, excludePattern) {
+            for (const k of exactKeys) {
+                if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') {
+                    return cleanNum(obj[k]);
+                }
+            }
+            if (regexPattern) {
+                for (const key of Object.keys(obj)) {
+                    if (regexPattern.test(key) && (!excludePattern || !excludePattern.test(key))) {
+                        if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
+                            return cleanNum(obj[key]);
+                        }
+                    }
+                }
+            }
+            return 0;
+        }
+
+        function normalizeLegacyServiceRecord(raw) {
+            const custName = findDynamicCustomerName(raw);
+            const phoneModel = pickFirstString(
+                raw,
+                ['phoneModel', 'Tipe_HP', 'tipeHp', 'tipe_hp', 'deviceModel', 'deviceType', 'device', 'phone', 'hp', 'unit', 'unitHp', 'merek', 'merkHp', 'model', 'type'],
+                /(phone|hp|device|unit|merk|merek|model|tipe)/i,
+                /(cust|pelanggan|no_?hp|nomor|telp|wa|whatsapp|pin|imei)/i
+            ) || '-';
+
+            const issueDesc = pickFirstString(
+                raw,
+                ['issueDesc', 'Keluhan', 'keluhan', 'kerusakan', 'issue', 'complaint', 'problem', 'damage', 'deskripsi', 'keterangan', 'note', 'notes', 'serviceDesc', 'jenisService', 'pekerjaan'],
+                /(keluhan|kerusakan|issue|complaint|problem|damage|deskrip|ket|perbaikan|service)/i,
+                /(status|id|date|tgl|tanggal|cost|biaya)/i
+            ) || '-';
+
+            const totalCost = findDynamicNumber(
+                raw,
+                ['totalCost', 'Total_Biaya', 'totalBiaya', 'total_biaya', 'biaya', 'biayaService', 'biaya_service', 'serviceCost', 'cost', 'harga', 'price', 'nominal', 'tagihan', 'total'],
+                /(total|biaya|cost|harga|price|tagihan|nominal)/i,
+                /(part|modal|spare|transport|ongkos|bensin|paid|bayar|dp|piutang|sisa|laba|profit|share|pct|persen)/i
+            );
+
+            const partCost = findDynamicNumber(
+                raw,
+                ['partCost', 'Modal_Sparepart', 'modalPart', 'modal_part', 'partPrice', 'hargaPart', 'sparepart', 'modal', 'part'],
+                /(part|modal|spare)/i,
+                /(status|debt|hutang|supp|toko|nama)/i
+            );
+
+            const transportCost = findDynamicNumber(
+                raw,
+                ['transportCost', 'Ongkos_Transport', 'transport', 'ongkos', 'bensin', 'operasional'],
+                /(transport|ongkos|bensin)/i,
+                null
+            );
+
+            let paidAmount = findDynamicNumber(
+                raw,
+                ['paidAmount', 'Sudah_Dibayar', 'sudahDibayar', 'dibayar', 'dp', 'downPayment', 'down_payment', 'amountPaid', 'paid', 'bayar', 'uangMasuk', 'terbayar'],
+                /(paid|bayar|dp|down|masuk)/i,
+                /(status|isPaid|lunas)/i
+            );
+
+            const rawPaidStatus = String(raw.paymentStatus || raw.statusBayar || raw.ketBayar || '').toLowerCase();
+            if (paidAmount === 0 && (raw.isPaid === true || raw.lunas === true || rawPaidStatus === 'lunas' || rawPaidStatus === 'paid')) {
+                paidAmount = totalCost;
+            }
+            // Jika file lama tidak menyimpan field paidAmount sama sekali dan tidak ada field piutang/sisa, anggap sudah dibayar penuh jika totalCost > 0
+            const hasPaidField = Object.keys(raw).some(k => /(paid|bayar|dp|down|piutang|sisa|hutang|lunas)/i.test(k));
+            if (paidAmount === 0 && totalCost > 0 && !hasPaidField) {
+                paidAmount = totalCost;
+            }
+
+            const workerRaw = pickFirstString(
+                raw,
+                ['workerType', 'Dikerjakan_Oleh', 'dikerjakanOleh', 'worker', 'teknisi', 'pengerja', 'by'],
+                /(worker|dikerjakan|pengerja)/i,
+                null
+            );
+            let workerType = 'Sendiri';
+            if (/istri/i.test(workerRaw)) workerType = 'Istri';
+            else if (/teknisi|partner|bagi/i.test(workerRaw)) workerType = 'Teknisi';
+
+            return {
+                id: String(raw.id || raw.ID || ('SRV-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase())),
+                custName,
+                custPhone: pickFirstString(raw, ['custPhone', 'No_HP', 'noHp', 'no_hp', 'phoneNumber', 'telp', 'wa', 'whatsapp'], /(no_?hp|telp|wa|whatsapp|nomor)/i, null),
+                phoneModel: String(phoneModel),
+                phoneImei: pickFirstString(raw, ['phoneImei', 'IMEI', 'imei', 'serial', 'sn'], /(imei|serial)/i, null),
+                phonePin: pickFirstString(raw, ['phonePin', 'PIN_Pola', 'pin', 'pola', 'password', 'sandi'], /(pin|pola|sandi|pass)/i, /(security)/i),
+                issueDesc: String(issueDesc),
+                accessories: pickFirstString(raw, ['accessories', 'Kelengkapan', 'kelengkapan', 'acc'], /(kelengkapan|acc)/i, null),
+                dateIn: raw.dateIn || raw.Tanggal_Masuk || raw.tanggalMasuk || raw.tanggal_masuk || raw.date || raw.tanggal || raw.createdAt || getTodayIso(),
+                dateOut: raw.dateOut || raw.Tanggal_Keluar || raw.tanggalKeluar || raw.tanggal_keluar || raw.finishedAt || '',
+                status: raw.status || raw.Status || raw.statusService || 'Antrean',
+                warrantyDays: findDynamicNumber(raw, ['warrantyDays', 'Garansi_Hari', 'garansi', 'warranty', 'masaGaransi'], /(garansi|warranty)/i, null),
+                totalCost,
+                partCost,
+                transportCost,
+                paidAmount,
+                partDebtStatus: raw.partDebtStatus || raw.Status_Hutang_Part || (raw.isPartDebt ? 'HUTANG' : 'LUNAS'),
+                supplierName: pickFirstString(raw, ['supplierName', 'Nama_Supplier', 'supplier', 'tokoPart'], /(supp|toko)/i, null),
+                workerType,
+                techName: pickFirstString(raw, ['techName', 'Nama_Teknisi', 'namaTeknisi'], /(techName|namaTeknisi|nama_teknisi)/i, null),
+                techSharePct: findDynamicNumber(raw, ['techSharePct', 'Persen_Teknisi', 'persenTeknisi', 'sharePct'], /(share|persen|pct)/i, null) || 50,
+                updatedAt: raw.updatedAt || Date.now()
+            };
+        }
+
+        function processRestoreFile() {
+            const fileInput = document.getElementById('restoreFileInput');
+            const file = fileInput.files && fileInput.files[0];
+            if (!file) {
+                showToast('Pilih file .json atau .xlsx terlebih dahulu!', 'warning');
+                return;
+            }
+            const mode = document.querySelector('input[name="restoreMode"]:checked')?.value || 'merge';
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    let importedServices = [];
+                    let importedLogs = [];
+                    let importedStocks = [];
+                    let importedTools = [];
+
+                    if (ext === 'json') {
+                        const parsed = JSON.parse(evt.target.result);
+                        let rawArr = [];
+                        if (Array.isArray(parsed)) {
+                            rawArr = parsed;
+                        } else if (parsed && typeof parsed === 'object') {
+                            rawArr = parsed.services || parsed.serviceRecords || parsed.records || parsed.data || parsed.items || parsed.list || [];
+                            if (!Array.isArray(rawArr) || rawArr.length === 0) {
+                                // Cari array objek terbesar di dalam root JSON jika menggunakan nama key kustom
+                                for (const k of Object.keys(parsed)) {
+                                    if (Array.isArray(parsed[k]) && parsed[k].length > 0 && typeof parsed[k][0] === 'object') {
+                                        if (!/(log|fund|stock|stok|tool|alat|mutasi)/i.test(k)) {
+                                            rawArr = parsed[k];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            importedLogs = parsed.fundLogs || parsed.fundUsageLogs || parsed.mutasi || parsed.logs || [];
+                            importedStocks = parsed.stocks || parsed.stockItems || parsed.stok || [];
+                            importedTools = parsed.tools || parsed.toolAssets || parsed.alat || [];
+                        }
+                        importedServices = rawArr.map(normalizeLegacyServiceRecord);
+                    } else if (['xlsx', 'xls', 'csv'].includes(ext) && typeof XLSX !== 'undefined') {
+                        const wb = XLSX.read(evt.target.result, { type: 'array' });
+                        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+                        const rows = XLSX.utils.sheet_to_json(firstSheet);
+                        importedServices = rows.map(normalizeLegacyServiceRecord);
+                    } else {
+                        throw new Error('Format file tidak didukung');
+                    }
+
+                    if (mode === 'replace') {
+                        serviceRecords = importedServices;
+                        if (Array.isArray(importedLogs) && importedLogs.length) fundUsageLogs = importedLogs;
+                        if (Array.isArray(importedStocks) && importedStocks.length) stockItems = importedStocks;
+                        if (Array.isArray(importedTools) && importedTools.length) toolAssets = importedTools;
+                    } else {
+                        const map = new Map(serviceRecords.map(s => [s.id, s]));
+                        importedServices.forEach(s => map.set(s.id, s));
+                        serviceRecords = Array.from(map.values());
+
+                        if (Array.isArray(importedLogs) && importedLogs.length) {
+                            fundUsageLogs = mergeCollection(fundUsageLogs, importedLogs);
+                        }
+                        if (Array.isArray(importedStocks) && importedStocks.length) {
+                            stockItems = mergeCollection(stockItems, importedStocks);
+                        }
+                        if (Array.isArray(importedTools) && importedTools.length) {
+                            toolAssets = mergeCollection(toolAssets, importedTools);
+                        }
+                    }
+
+                    persistAllLocalData();
+                    renderAllViews();
+                    closeBackupRestoreModal();
+                    broadcastAllState();
+                    showToast(`Berhasil memulihkan ${importedServices.length} data service secara lengkap!`, 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal membaca file cadangan. Pastikan format file valid.', 'error');
+                }
+            };
+
+            if (ext === 'json') reader.readAsText(file);
+            else reader.readAsArrayBuffer(file);
+        }
+
+        // =========================================================================
+        // 10. KODE UNIK SINKRONISASI REAL-TIME & OTORISASI PERANGKAT PEMILIK
+        // =========================================================================
+        let mqttClient = null;
+        let broadcastChan = null;
+        let onlinePeersMap = {};
+        let pendingJoinQueue = [];
+        let activeApprovalRequest = null;
+        let hasRequestedJoinThisSession = false;
+
+        function getCurrentRoomAuth() {
+            if (!activeRoomCode) return { ownerId: '', approvedDevices: {} };
+            if (!roomAuthRegistry[activeRoomCode]) {
+                roomAuthRegistry[activeRoomCode] = { ownerId: '', approvedDevices: {} };
+            }
+            return roomAuthRegistry[activeRoomCode];
+        }
+
+        function isCurrentDeviceAuthorized() {
+            if (!activeRoomCode) return false;
+            const auth = getCurrentRoomAuth();
+            if (!auth.ownerId) return true;
+            if (auth.ownerId === MY_DEVICE_ID) return true;
+            return Boolean(auth.approvedDevices && auth.approvedDevices[MY_DEVICE_ID]);
+        }
+
+        function updateSyncBadgeStatus(online, customText) {
+            const dot = document.getElementById('syncStatusDot');
+            const text = document.getElementById('syncStatusText');
+            const countEl = document.getElementById('connectedDeviceCount');
+
+            if (!activeRoomCode) {
+                text.textContent = 'Belum Ada Kode Unik';
+                dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+                if (countEl) countEl.textContent = '0 Perangkat';
+                return;
+            }
+
+            if (customText) {
+                text.textContent = customText;
+                dot.className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+            } else if (online) {
+                text.textContent = `Online (${activeRoomCode})`;
+                dot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+            } else {
+                text.textContent = `Lokal (${activeRoomCode})`;
+                dot.className = 'w-2 h-2 rounded-full bg-blue-500';
+            }
+
+            const peerIds = new Set([MY_DEVICE_ID, ...Object.keys(onlinePeersMap)]);
+            if (countEl) countEl.textContent = `${peerIds.size} Perangkat`;
+        }
+
+        function getRoomBaseTopic() {
+            return `profix_service_hp_v3/room_${activeRoomCode.toLowerCase()}`;
+        }
+
+        function initInstantRealtimeSync() {
+            if (!activeRoomCode) {
+                updateSyncBadgeStatus(false, 'Belum Ada Kode Unik');
+                return;
+            }
+
+            hasRequestedJoinThisSession = false;
+            onlinePeersMap = {
+                [MY_DEVICE_ID]: { name: MY_DEVICE_NAME, lastSeen: Date.now() }
+            };
+
+            // 1. BroadcastChannel untuk sinkronisasi instan antar-tab browser lokal
+            try {
+                if (broadcastChan) broadcastChan.close();
+                if ('BroadcastChannel' in window) {
+                    broadcastChan = new BroadcastChannel('profix_chan_' + activeRoomCode);
+                    broadcastChan.onmessage = (ev) => {
+                        if (ev.data) handleIncomingSyncPacket(ev.data);
+                    };
+                }
+            } catch (_) {}
+
+            // 2. Koneksi MQTT Real-Time (dilindungi try/catch agar aman di sandbox/Canvas)
+            try {
+                if (mqttClient) {
+                    try { mqttClient.end(true); } catch (_) {}
+                    mqttClient = null;
+                }
+                if (typeof mqtt === 'undefined') {
+                    updateSyncBadgeStatus(false);
+                    return;
+                }
+
+                const clientId = 'profix_' + MY_DEVICE_ID + '_' + Math.random().toString(36).substring(2, 6);
+                mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+                    clientId,
+                    clean: true,
+                    connectTimeout: 8000,
+                    reconnectPeriod: 5000
+                });
+
+                mqttClient.on('connect', () => {
+                    const base = getRoomBaseTopic();
+                    mqttClient.subscribe(`${base}/data`);
+                    mqttClient.subscribe(`${base}/auth`);
+                    updateSyncBadgeStatus(true);
+                    announceDevicePresence();
+
+                    // Klaim kepemilikan jika belum ada pemilik setelah jeda singkat
+                    setTimeout(() => {
+                        const auth = getCurrentRoomAuth();
+                        if (!auth.ownerId && Object.keys(onlinePeersMap).length <= 1) {
+                            auth.ownerId = MY_DEVICE_ID;
+                            auth.approvedDevices[MY_DEVICE_ID] = { name: MY_DEVICE_NAME, approvedAt: Date.now() };
+                            saveRoomAuthRegistry();
+                        }
+                        if (isCurrentDeviceAuthorized()) {
+                            broadcastAllState();
+                        } else if (!hasRequestedJoinThisSession) {
+                            hasRequestedJoinThisSession = true;
+                            sendJoinAccessRequest();
+                        }
+                    }, 1800);
+                });
+
+                mqttClient.on('message', (topic, payload) => {
+                    try {
+                        const msg = JSON.parse(payload.toString());
+                        if (topic.endsWith('/auth')) handleIncomingAuthMessage(msg);
+                        else handleIncomingSyncPacket(msg);
+                    } catch (_) {}
+                });
+
+                mqttClient.on('error', () => {
+                    updateSyncBadgeStatus(false);
+                });
+
+                mqttClient.on('offline', () => {
+                    updateSyncBadgeStatus(false);
+                });
+            } catch (_) {
+                // Lingkungan sandbox (mis. pratinjau Canvas) membatasi WebSocket eksternal -> fallback lokal mulus
+                updateSyncBadgeStatus(false);
+            }
+        }
+
+        function publishToTopic(subtopic, dataObj) {
+            if (!activeRoomCode) return;
+            const packet = Object.assign({}, dataObj, {
+                roomCode: activeRoomCode,
+                senderId: MY_DEVICE_ID,
+                senderName: MY_DEVICE_NAME,
+                ts: Date.now()
+            });
+
+            if (subtopic === 'data' && broadcastChan) {
+                try { broadcastChan.postMessage(packet); } catch (_) {}
+            }
+            if (mqttClient && mqttClient.connected) {
+                try {
+                    mqttClient.publish(`${getRoomBaseTopic()}/${subtopic}`, JSON.stringify(packet));
+                } catch (_) {}
+            }
+        }
+
+        function announceDevicePresence() {
+            publishToTopic('auth', { type: 'PRESENCE', ownerId: getCurrentRoomAuth().ownerId || '' });
+        }
+
+        function sendJoinAccessRequest() {
+            updateSyncBadgeStatus(false, 'Menunggu Izin Pemilik...');
+            publishToTopic('auth', {
+                type: 'JOIN_REQUEST',
+                deviceId: MY_DEVICE_ID,
+                deviceName: MY_DEVICE_NAME
+            });
+        }
+
+        function manualReRequestAccess() {
+            hasRequestedJoinThisSession = true;
+            sendJoinAccessRequest();
+            showToast('Permintaan izin masuk telah dikirim ke perangkat utama!', 'info');
+        }
+
+        function handleIncomingAuthMessage(msg) {
+            if (!msg || msg.roomCode !== activeRoomCode || msg.senderId === MY_DEVICE_ID) return;
+
+            onlinePeersMap[msg.senderId] = {
+                name: msg.senderName || 'Perangkat Lain',
+                lastSeen: Date.now()
+            };
+
+            const auth = getCurrentRoomAuth();
+            // Jika pengirim sudah mengklaim sebagai owner sah & lokal belum punya owner, ikuti
+            if (msg.ownerId && !auth.ownerId) {
+                auth.ownerId = msg.ownerId;
+                saveRoomAuthRegistry();
+            }
+
+            if (msg.type === 'PRESENCE') {
+                updateSyncBadgeStatus(Boolean(mqttClient && mqttClient.connected));
+                if (auth.ownerId === MY_DEVICE_ID) {
+                    publishToTopic('auth', {
+                        type: 'OWNER_ANNOUNCE',
+                        ownerId: MY_DEVICE_ID,
+                        approvedDevices: auth.approvedDevices
+                    });
+                }
+                return;
+            }
+
+            if (msg.type === 'OWNER_ANNOUNCE') {
+                if (msg.ownerId) {
+                    auth.ownerId = msg.ownerId;
+                    if (msg.approvedDevices) auth.approvedDevices = msg.approvedDevices;
+                    saveRoomAuthRegistry();
+                }
+                if (!isCurrentDeviceAuthorized() && !hasRequestedJoinThisSession) {
+                    hasRequestedJoinThisSession = true;
+                    sendJoinAccessRequest();
+                } else if (isCurrentDeviceAuthorized()) {
+                    updateSyncBadgeStatus(Boolean(mqttClient && mqttClient.connected));
+                }
+                return;
+            }
+
+            if (msg.type === 'JOIN_REQUEST') {
+                // Jika perangkat ini adalah pemilik utama (atau memiliki data lokal sebelum kode baru), tampilkan pop-up izin
+                if (!auth.ownerId && serviceRecords.length > 0) {
+                    auth.ownerId = MY_DEVICE_ID;
+                    saveRoomAuthRegistry();
+                }
+                if (auth.ownerId === MY_DEVICE_ID) {
+                    if (!pendingJoinQueue.some(x => x.deviceId === msg.deviceId)) {
+                        pendingJoinQueue.push({
+                            deviceId: msg.deviceId,
+                            deviceName: msg.deviceName || 'Perangkat Baru'
+                        });
+                        showNextJoinApprovalModal();
+                    }
+                }
+                return;
+            }
+
+            if (msg.type === 'JOIN_RESPONSE' && msg.targetDeviceId === MY_DEVICE_ID) {
+                if (msg.approved) {
+                    auth.ownerId = msg.ownerId || auth.ownerId;
+                    auth.approvedDevices[MY_DEVICE_ID] = { name: MY_DEVICE_NAME, approvedAt: Date.now() };
+                    saveRoomAuthRegistry();
+                    updateSyncBadgeStatus(true);
+                    showToast('Perangkat Anda telah diizinkan masuk oleh pemilik konter!', 'success');
+                } else {
+                    delete auth.approvedDevices[MY_DEVICE_ID];
+                    saveRoomAuthRegistry();
+                    updateSyncBadgeStatus(false, 'Akses Ditolak');
+                    showToast('Permintaan akses ditolak oleh pemilik konter.', 'error');
+                }
+                return;
+            }
+
+            if (msg.type === 'KICK_DEVICE' && msg.targetDeviceId === MY_DEVICE_ID) {
+                delete auth.approvedDevices[MY_DEVICE_ID];
+                saveRoomAuthRegistry();
+                hasRequestedJoinThisSession = false;
+                updateSyncBadgeStatus(false, 'Akses Diputus');
+                showToast('Koneksi perangkat ini diputus oleh perangkat utama.', 'warning');
+                renderConnectedDevicesList();
+            }
+        }
+
+        function showNextJoinApprovalModal() {
+            if (activeApprovalRequest || pendingJoinQueue.length === 0) return;
+            activeApprovalRequest = pendingJoinQueue.shift();
+            document.getElementById('approvalDeviceDetails').innerHTML = `
+                <div><strong>Jenis Perangkat:</strong> ${escapeHtml(activeApprovalRequest.deviceName)}</div>
+                <div><strong>ID Perangkat:</strong> <span class="font-mono">${escapeHtml(activeApprovalRequest.deviceId)}</span></div>
+                <div><strong>Kode Konter:</strong> ${escapeHtml(activeRoomCode)}</div>
+            `;
+            showModalById('deviceApprovalModal');
+        }
+
+        function respondDeviceJoinRequest(approved) {
+            if (!activeApprovalRequest) return;
+            const target = activeApprovalRequest;
+            activeApprovalRequest = null;
+            hideModalById('deviceApprovalModal');
+
+            const auth = getCurrentRoomAuth();
+            if (approved) {
+                auth.approvedDevices[target.deviceId] = {
+                    name: target.deviceName,
+                    approvedAt: Date.now()
+                };
+                saveRoomAuthRegistry();
+                showToast(`${target.deviceName} diizinkan masuk!`, 'success');
+            } else {
+                delete auth.approvedDevices[target.deviceId];
+                saveRoomAuthRegistry();
+                showToast(`Permintaan ${target.deviceName} ditolak.`, 'warning');
+            }
+
+            publishToTopic('auth', {
+                type: 'JOIN_RESPONSE',
+                targetDeviceId: target.deviceId,
+                approved,
+                ownerId: MY_DEVICE_ID
+            });
+
+            if (approved) broadcastAllState();
+            renderConnectedDevicesList();
+            setTimeout(showNextJoinApprovalModal, 300);
+        }
+
+        function kickDeviceFromRoom(targetId) {
+            const auth = getCurrentRoomAuth();
+            if (auth.ownerId !== MY_DEVICE_ID || targetId === MY_DEVICE_ID) return;
+            delete auth.approvedDevices[targetId];
+            delete onlinePeersMap[targetId];
+            saveRoomAuthRegistry();
+
+            publishToTopic('auth', {
+                type: 'KICK_DEVICE',
+                targetDeviceId: targetId
+            });
+            renderConnectedDevicesList();
+            updateSyncBadgeStatus(Boolean(mqttClient && mqttClient.connected));
+            showToast('Perangkat berhasil diputus dari kode unik ini.', 'info');
+        }
+
+        function broadcastAllState() {
+            if (!activeRoomCode || !isCurrentDeviceAuthorized()) return;
+            publishToTopic('data', {
+                type: 'FULL_STATE',
+                services: serviceRecords,
+                fundLogs: fundUsageLogs,
+                stocks: stockItems,
+                tools: toolAssets,
+                settings: appSettings
+            });
+        }
+
+        function handleIncomingSyncPacket(pkt) {
+            if (!pkt || pkt.roomCode !== activeRoomCode || pkt.senderId === MY_DEVICE_ID) return;
+            if (!isCurrentDeviceAuthorized()) return;
+
+            onlinePeersMap[pkt.senderId] = {
+                name: pkt.senderName || 'Perangkat Terhubung',
+                lastSeen: Date.now()
+            };
+
+            if (pkt.type === 'FULL_STATE') {
+                serviceRecords = mergeCollection(serviceRecords, pkt.services || []);
+                fundUsageLogs = mergeCollection(fundUsageLogs, pkt.fundLogs || []);
+                stockItems = mergeCollection(stockItems, pkt.stocks || []);
+                toolAssets = mergeCollection(toolAssets, pkt.tools || []);
+                persistAllLocalData();
+                renderAllViews();
+                updateSyncBadgeStatus(Boolean(mqttClient && mqttClient.connected));
+            }
+        }
+
+        function mergeCollection(localArr, remoteArr) {
+            const map = new Map();
+            localArr.forEach(item => { if (item && item.id) map.set(item.id, item); });
+            remoteArr.forEach(item => {
+                if (!item || !item.id) return;
+                const existing = map.get(item.id);
+                if (!existing || (item.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                    map.set(item.id, item);
+                }
+            });
+            return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        }
+
+        function manualSyncNow() {
+            if (!activeRoomCode) {
+                openInitialRoomSetupOverlay();
+                return;
+            }
+            if (!isCurrentDeviceAuthorized()) {
+                manualReRequestAccess();
+                return;
+            }
+            announceDevicePresence();
+            broadcastAllState();
+            showToast('Sinkronisasi data dikirim ke semua perangkat terhubung!', 'success');
+        }
+
+        // Modal Kode Unik & Manajemen Perangkat
+        function openRoomCodeModal() {
+            document.getElementById('roomCodeModalInput').value = activeRoomCode;
+            const auth = getCurrentRoomAuth();
+            const isOwner = !auth.ownerId || auth.ownerId === MY_DEVICE_ID;
+            const isAuth = isCurrentDeviceAuthorized();
+
+            const statusBox = document.getElementById('roomOwnershipStatusBox');
+            const reReqBox = document.getElementById('reRequestAccessBox');
+
+            if (isOwner) {
+                statusBox.textContent = `Status: Perangkat Utama (Pemilik Kode) • ID: ${MY_DEVICE_ID}`;
+                reReqBox.classList.add('hidden');
+            } else if (isAuth) {
+                statusBox.textContent = `Status: Perangkat Anggota Diizinkan • ID: ${MY_DEVICE_ID}`;
+                reReqBox.classList.add('hidden');
+            } else {
+                statusBox.textContent = `Status: Menunggu Izin Pemilik Kode (${auth.ownerId})`;
+                reReqBox.classList.remove('hidden');
+            }
+
+            renderConnectedDevicesList();
+            showModalById('roomCodeModal');
+        }
+
+        function closeRoomCodeModal() {
+            hideModalById('roomCodeModal');
+        }
+
+        function generateRandomRoomCode() {
+            const rand = Math.random().toString(36).substring(2, 7).toUpperCase();
+            document.getElementById('roomCodeModalInput').value = `KONTER-${rand}`;
+        }
+
+        function handleSaveRoomCodeOnly() {
+            const newCode = (document.getElementById('roomCodeModalInput').value || '').trim().toUpperCase().replace(/\s+/g, '');
+            if (!newCode || newCode.length < 4) {
+                showToast('Kode unik minimal 4 karakter!', 'warning');
+                return;
+            }
+            activeRoomCode = newCode;
+            localStorage.setItem(STORAGE_KEYS.ROOM_CODE, activeRoomCode);
+            if (!roomAuthRegistry[activeRoomCode]) {
+                roomAuthRegistry[activeRoomCode] = { ownerId: '', approvedDevices: {} };
+                saveRoomAuthRegistry();
+            }
+            closeRoomCodeModal();
+            initInstantRealtimeSync();
+            showToast(`Terhubung ke kode unik ${activeRoomCode}`, 'success');
+        }
+
+        function renderConnectedDevicesList() {
+            const box = document.getElementById('connectedDevicesList');
+            const auth = getCurrentRoomAuth();
+            const amIOwner = auth.ownerId === MY_DEVICE_ID;
+
+            const allIds = new Set([
+                MY_DEVICE_ID,
+                ...Object.keys(onlinePeersMap),
+                ...Object.keys(auth.approvedDevices || {})
+            ]);
+            if (auth.ownerId) allIds.add(auth.ownerId);
+
+            document.getElementById('modalDeviceCountBadge').textContent = `${allIds.size} Perangkat`;
+
+            box.innerHTML = Array.from(allIds).map(devId => {
+                const isMe = devId === MY_DEVICE_ID;
+                const isOwner = devId === auth.ownerId;
+                const info = onlinePeersMap[devId] || (auth.approvedDevices && auth.approvedDevices[devId]) || { name: 'Perangkat Terdaftar' };
+                const label = isMe ? `${MY_DEVICE_NAME} (Perangkat Ini)` : (info.name || 'Perangkat Lain');
+
+                return `
+                <div class="flex items-center justify-between gap-2 bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
+                    <div>
+                        <div class="font-bold text-slate-800">${escapeHtml(label)}</div>
+                        <div class="text-[10px] text-slate-500 font-mono">${escapeHtml(devId)} ${isOwner ? '• Pemilik Utama' : ''}</div>
+                    </div>
+                    ${amIOwner && !isMe
+                        ? `<button type="button" onclick="kickDeviceFromRoom('${devId}')" class="px-2.5 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold text-[11px] cursor-pointer">Putuskan</button>`
+                        : `<span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold text-[10px]">Aktif</span>`
+                    }
+                </div>`;
+            }).join('');
+        }
+
+        // =========================================================================
+        // 11. PWA MANIFEST DINAMIS & DOWNLOAD FILE STANDALONE
+        // =========================================================================
+        let deferredInstallPrompt = null;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+        });
+
+        function setupDynamicPwaManifest() {
+            try {
+                const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="#1d4ed8"/><rect x="38" y="20" width="52" height="88" rx="10" fill="none" stroke="#ffffff" stroke-width="8"/><circle cx="64" cy="94" r="5" fill="#ffffff"/></svg>`;
+                const iconDataUrl = 'data:image/svg+xml;base64,' + btoa(svgIcon);
+                const iconLink = document.getElementById('dynamicAppIcon');
+                if (iconLink) iconLink.href = iconDataUrl;
+
+                const manifestObj = {
+                    name: appSettings.shopName || 'ProFix Service HP',
+                    short_name: (appSettings.shopName || 'ProFix').slice(0, 14),
+                    start_url: '.',
+                    display: 'standalone',
+                    background_color: '#f1f5f9',
+                    theme_color: '#1e40af',
+                    icons: [{ src: iconDataUrl, sizes: '192x192', type: 'image/svg+xml' }]
+                };
+                const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' });
+                const manifestUrl = URL.createObjectURL(manifestBlob);
+                const manifestLink = document.getElementById('dynamicManifestLink');
+                if (manifestLink) manifestLink.href = manifestUrl;
+            } catch (_) {}
+        }
+
+        async function triggerInstallApp() {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                await deferredInstallPrompt.userChoice;
+                deferredInstallPrompt = null;
+            } else {
+                switchTab('install');
+                showToast('Ikuti panduan pemasangan atau unduh file aplikasi di tab ini.', 'info');
+            }
+        }
+
+        function downloadStandaloneAppFile() {
+            const clonedDoc = document.documentElement.cloneNode(true);
+            ['servicesTableBody', 'piutangListContainer', 'hutangPartListContainer', 'fundLogsTableBody', 'stockListContainer', 'toolAssetListContainer', 'monthlyReportContainer', 'toastContainer'].forEach(id => {
+                const el = clonedDoc.querySelector('#' + id);
+                if (el) el.innerHTML = '';
+            });
+            ['roomCodeModal', 'deviceApprovalModal', 'serviceModal', 'fundUsageModal', 'receiptModal', 'techLabelModal', 'warrantyCheckModal', 'settingsModal', 'stockItemModal', 'toolAssetModal', 'pinLockOverlay', 'backupRestoreModal', 'initialRoomSetupOverlay'].forEach(id => {
+                const modalEl = clonedDoc.querySelector('#' + id);
+                if (modalEl) {
+                    modalEl.classList.add('hidden');
+                    modalEl.classList.remove('flex');
+                    modalEl.style.display = '';
+                }
+            });
+
+            const mLink = clonedDoc.querySelector('#dynamicManifestLink');
+            if (mLink) mLink.setAttribute('href', '');
+
+            const htmlOutput = '<!DOCTYPE html>\n' + clonedDoc.outerHTML;
+            const blob = new Blob([htmlOutput], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Aplikasi_${(appSettings.shopName || 'ProFix').replace(/\s+/g, '_')}_Terbaru_${getTodayIso()}.html`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            showToast('File aplikasi versi terbaru berhasil diunduh!', 'success');
+        }
+
+        function escapeHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // =========================================================================
+        // 12. INISIALISASI SAAT HALAMAN SELESAI DIMUAT
+        // =========================================================================
+        window.onload = function() {
+            applySettingsToUI();
+            setupDynamicPwaManifest();
+            renderAllViews();
+
+            if (!activeRoomCode) {
+                updateSyncBadgeStatus(false, 'Belum Ada Kode Unik');
+                openInitialRoomSetupOverlay();
+            } else {
+                initInstantRealtimeSync();
+                if (appSettings.securityPin && appSettings.securityPin.length >= 4) {
+                    lockAppScreen();
+                }
+            }
+        };
+    </script>
+</body>
+</html>
